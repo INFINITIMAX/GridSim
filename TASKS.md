@@ -13,7 +13,8 @@ Index de stare. Detalii: `docs/plan.md`; predări: `docs/handoff/`.
 | P2b | Teste protecții + corecturi neblocante | coder → tester → reviewer | gata: 41/41 teste, reviewer ACCEPTAT |
 | P4a | Extensii model: FFR baterii, preset insulă, prioritate FCR, setSetpoint limitat | coder → tester → reviewer | gata: 65/65, reviewer ACCEPTAT (bug ciclu limită găsit de tester și reparat) |
 | P3 | Date ENTSO-E | planner + coder | **blocat: Lucian își face cont gratuit ENTSO-E** (Energy-Charts interzice redistribuirea) |
-| P4 | Nivelul 1 + sandbox | coder → tester → reviewer | coder gata (+ Retur 1: echilibrare la start; 107 combinații verificate); **tester în lucru** |
+| P4 | Nivelul 1 + sandbox | coder → tester → reviewer | gata: 145/145 (model+joc), reviewer ACCEPTAT |
+| P4b | Curățenie joc: plafon log, redenumire uflsStages, teste blackout/rebalance sandbox | coder → tester | după P5/P6 |
 | P5 | Scena 3D | coder → tester → reviewer | **coder în lucru** |
 | P6 | UI + main.ts | coder → tester → reviewer | **coder în lucru** (Geist + Phosphor instalate) |
 | P7 | Verificare e2e | planner + tester | de făcut |

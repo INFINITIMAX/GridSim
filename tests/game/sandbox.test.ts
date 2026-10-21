@@ -1,7 +1,6 @@
 // P4: sandbox. Părți din L1 (stări), L4 (reechilibrare) și L8 (construcții cu pornire întârziată, consumatori, viteză).
 import { describe, expect, it } from "vitest";
-import { createSession } from "../../src/game";
-import { CONSUMER_KINDS } from "../../src/game";
+import { CONSUMER_KINDS, createSession } from "../../src/game";
 import { LOAD_CATALOG } from "../../src/model";
 import { accept, advanceBy, builtIds, refusal, unitOf } from "./helpers";
 

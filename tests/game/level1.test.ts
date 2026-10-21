@@ -344,7 +344,8 @@ describe("L5: evenimentele scriptate se aplică exact o dată, la timpul lor", (
     expect(snap.units.filter((u) => u.id === "gas")).toHaveLength(1);
 
     expect(messages.filter((m) => /factory/i.test(m)), "mesajul fabricii o singură dată").toHaveLength(1);
-    expect(messages.filter((m) => /gas plant/i.test(m)), "mesajul gazului o singură dată").toHaveLength(1);
+    // The intro also mentions the gas plant, so match the trip message itself.
+    expect(messages.filter((m) => /gas plant tripped/i.test(m)), "mesajul gazului o singură dată").toHaveLength(1);
     expect(snap.log.filter((e) => e.type === "unit-tripped" && e.detail.startsWith("gas"))).toHaveLength(1);
   });
 
