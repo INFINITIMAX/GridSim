@@ -20,7 +20,7 @@ export interface SceneHandle {
   update(snapshot: Snapshot, dtSeconds: number): void;
   resize(width: number, height: number): void;
   /** Keeps the island clear of a side panel of this width (desktop). */
-  setPaddingRight(px: number): void;
+  setPadding(left: number, right: number): void;
   dispose(): void;
 }
 
@@ -78,8 +78,8 @@ export function mountScene(canvas: HTMLCanvasElement): SceneHandle {
       }
     },
     resize,
-    setPaddingRight(px: number): void {
-      rig.setPaddingRight(px);
+    setPadding(left: number, right: number): void {
+      rig.setPadding(left, right);
     },
     dispose(): void {
       reducedMotion?.removeEventListener("change", onMotionChange);

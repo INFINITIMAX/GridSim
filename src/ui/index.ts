@@ -20,7 +20,7 @@ const FPS_WINDOW_S = 0.5;
 
 export interface UiOptions {
   root: HTMLElement;
-  onPaddingRight(px: number): void;
+  onPadding(left: number, right: number): void;
   onRetry(): void;
   onOpenSandbox(): void;
   showFps: boolean;
@@ -55,9 +55,11 @@ export function mountUi(options: UiOptions): Ui {
   }
 
   function reportPadding(): void {
-    options.onPaddingRight(side.getBoundingClientRect().width + SIDE_GAP_PX);
+    options.onPadding(hud.element.getBoundingClientRect().right + SIDE_GAP_PX, side.getBoundingClientRect().width + SIDE_GAP_PX);
   }
-  new ResizeObserver(reportPadding).observe(side);
+  const padObserver = new ResizeObserver(reportPadding);
+  padObserver.observe(side);
+  padObserver.observe(hud.element);
   reportPadding();
 
   function bind(next: Session, mode: GameMode): void {

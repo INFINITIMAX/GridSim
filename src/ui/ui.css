@@ -328,8 +328,8 @@
 .card {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
-  padding: var(--sp-3);
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
   background: var(--c-surface-sunk);
   border: 1px solid var(--c-line);
   border-radius: var(--r-panel);
@@ -356,6 +356,13 @@
 .card-text {
   margin: 0;
   color: var(--c-ink-muted);
+  font-size: var(--fs-sm, 0.875rem);
+  line-height: 1.4;
+}
+
+.btn-small {
+  min-height: 32px;
+  padding: 0 var(--sp-3);
 }
 
 .refusal {

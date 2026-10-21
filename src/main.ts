@@ -1,5 +1,5 @@
 import { createSession } from "./game";
-import type { GameMode, Session, Snapshot } from "./game";
+import type { ActionResult, GameMode, Session, Snapshot } from "./game";
 import { mountScene } from "./scene";
 import { mountUi } from "./ui";
 
@@ -10,6 +10,8 @@ interface GridSimHooks {
   session: Session;
   /** The snapshot of the last frame. It does not consume narrative messages. */
   snapshot(): Snapshot;
+  /** Sudden loss of a unit through the real model (used by e2e tests and the sandbox Trip button). */
+  forceTrip(id: string): ActionResult;
 }
 
 declare global {
@@ -28,7 +30,7 @@ const initialMode: GameMode = params.get("mode") === "sandbox" ? "sandbox" : "le
 const scene = mountScene(canvas);
 const ui = mountUi({
   root: uiRoot,
-  onPaddingRight: (px) => scene.setPaddingRight(px),
+  onPadding: (left, right) => scene.setPadding(left, right),
   onRetry: () => startSession(currentMode),
   onOpenSandbox: () => startSession("sandbox"),
   showFps: params.has("fps"),
@@ -54,6 +56,7 @@ function startSession(mode: GameMode): void {
   window.__gridsim = {
     session,
     snapshot: () => lastSnapshot ?? session.snapshot(),
+    forceTrip: (id) => session.tripUnit(id),
   };
   frame(0);
 }

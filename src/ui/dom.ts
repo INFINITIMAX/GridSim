@@ -13,6 +13,7 @@ import close from "@phosphor-icons/core/assets/bold/x-bold.svg?raw";
 import play from "@phosphor-icons/core/assets/bold/play-bold.svg?raw";
 import plug from "@phosphor-icons/core/assets/bold/plug-bold.svg?raw";
 import redo from "@phosphor-icons/core/assets/bold/arrow-counter-clockwise-bold.svg?raw";
+import trip from "@phosphor-icons/core/assets/bold/lightning-slash-bold.svg?raw";
 
 export const ICONS = {
   star,
@@ -28,6 +29,7 @@ export const ICONS = {
   play,
   plug,
   redo,
+  trip,
 } as const;
 
 export type IconName = keyof typeof ICONS;

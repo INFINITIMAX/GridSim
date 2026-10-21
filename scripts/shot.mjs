@@ -11,6 +11,7 @@ try {
   const errors = [];
   page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
   page.on("pageerror", (error) => errors.push(String(error)));
+  page.on("response", (response) => { if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`); });
   for (let attempt = 0; ; attempt++) {
     try { await page.goto("http://localhost:4174/"); break; } catch (error) { if (attempt > 40) throw error; await new Promise((r) => setTimeout(r, 250)); }
   }

@@ -35,19 +35,21 @@ function sizeText(kind: BuildKind, sandbox: boolean): string {
 
 function buildCard(kind: BuildKind, sandbox: boolean, getSession: () => Session): HTMLElement {
   const refusal = el("p", { class: "refusal", "aria-live": "polite" });
-  const button = el("button", { type: "button", class: "btn btn-secondary", "data-testid": `build-${kind}` }, [
-    `Build ${UNIT_LABEL[kind].toLowerCase()}`,
-  ]);
+  const button = el("button", {
+    type: "button",
+    class: "btn btn-secondary btn-small",
+    "aria-label": `Build ${UNIT_LABEL[kind].toLowerCase()}`,
+    "data-testid": `build-${kind}`,
+  }, ["Build"]);
   bindAction(button, refusal, () => getSession().build(kind));
   const info = BUILD_INFO[kind];
   return el("article", { class: "card" }, [
     el("div", { class: "card-head" }, [
       icon(info.icon),
       el("h3", { class: "card-title" }, [UNIT_LABEL[kind]]),
-      el("span", { class: "num card-meta" }, [sizeText(kind, sandbox)]),
+      button,
     ]),
-    el("p", { class: "card-text" }, [info.text]),
-    button,
+    el("p", { class: "card-text" }, [el("span", { class: "num card-meta" }, [sizeText(kind, sandbox)]), " ", info.text]),
     refusal,
   ]);
 }
@@ -90,6 +92,18 @@ export function createBuildPanel(getSession: () => Session): SidePart {
         label.append(el("span", { class: "tag-off" }, ["offline"]));
       }
       const row = el("li", { class: "row" }, [label, el("span", {}, [power, ` / ${fmt(unit.pMax, 0)} MW`])]);
+      if (snapshot.mode === "sandbox" && unit.online) {
+        const tripRefusal = el("p", { class: "refusal", "aria-live": "polite" });
+        const tripButton = el("button", {
+          type: "button",
+          class: "btn btn-icon",
+          "aria-label": `Trip ${UNIT_LABEL[unit.kind].toLowerCase()} offline`,
+          title: "Trip offline (sudden loss)",
+          "data-testid": `trip-${unit.id}`,
+        }, [icon("trip")]);
+        bindAction(tripButton, tripRefusal, () => getSession().tripUnit(unit.id));
+        row.append(tripButton, tripRefusal);
+      }
       const demolishable = snapshot.mode === "sandbox" || !STARTING_UNIT_IDS.has(unit.id);
       if (canDemolish && demolishable) {
         const refusal = el("p", { class: "refusal", "aria-live": "polite" });

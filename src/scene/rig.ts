@@ -12,7 +12,8 @@ const PAN_LIMIT = new THREE.Vector3(6, 3, 6);
 export interface Rig {
   readonly camera: THREE.OrthographicCamera;
   resize(width: number, height: number): void;
-  setPaddingRight(px: number): void;
+  /** Screen px covered by interface columns on each side; the island centres in what is left. */
+  setPadding(left: number, right: number): void;
   /** Call once per frame, before rendering. */
   update(): void;
   dispose(): void;
@@ -42,15 +43,16 @@ export function createRig(canvas: HTMLCanvasElement): Rig {
 
   let width = 1;
   let height = 1;
+  let paddingLeft = 0;
   let paddingRight = 0;
 
   function frame(): void {
-    const free = Math.max(width - paddingRight, 1);
+    const free = Math.max(width - paddingLeft - paddingRight, 1);
     const pxPerUnit = Math.min(height / FIT_HEIGHT, free / FIT_WIDTH);
     const halfH = height / (2 * pxPerUnit);
     const halfW = halfH * (width / height);
     // Move the view center so the island sits in the middle of the free area.
-    const shift = paddingRight / 2 / pxPerUnit;
+    const shift = (paddingRight - paddingLeft) / 2 / pxPerUnit;
     camera.left = -halfW + shift;
     camera.right = halfW + shift;
     camera.top = halfH;
@@ -66,8 +68,9 @@ export function createRig(canvas: HTMLCanvasElement): Rig {
       height = Math.max(h, 1);
       frame();
     },
-    setPaddingRight(px: number): void {
-      paddingRight = Math.max(px, 0);
+    setPadding(left: number, right: number): void {
+      paddingLeft = Math.max(left, 0);
+      paddingRight = Math.max(right, 0);
       frame();
     },
     update(): void {
