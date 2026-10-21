@@ -54,12 +54,12 @@ Scope: a playable level-1 grid simulator in the browser, built on a physics mode
   EXPECT: e2e level1 passed
   EVIDENCE: pending
 
-- [ ] G10: at 390 px width the page has no horizontal scroll and the frequency dial and build menu are visible
-  CHECK: node scripts/verify-e2e.mjs mobile
-  EXPECT: e2e mobile passed
+- [ ] G10: at a 1280x720 desktop viewport the page has no horizontal or vertical scroll and the frequency dial and build panel are fully visible
+  CHECK: node scripts/verify-e2e.mjs layout
+  EXPECT: e2e layout passed
   EVIDENCE: pending
 
-- [ ] G11: Lucian measures at least 60 fps on his laptop and at least 30 fps on his phone with the in-app fps counter during level 1
+- [ ] G11: Lucian measures at least 60 fps on his laptop with the in-app fps counter during level 1
   EVIDENCE: pending
 
 - [ ] G12: the How real is this screen opens from the HUD and states that Romania is synchronised with continental Europe

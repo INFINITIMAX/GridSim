@@ -4,7 +4,7 @@ Status: aprobat (21-10-2026), quiz scos din felia verticală. Sursa: `docs/inten
 ## Cerințe
 
 ### Funcționale
-1. **O scenă 3D low-poly**: o mică rețea de insulă, cu un oraș, centrale și linii. Se poate roti, apropia și muta (drag/scroll pe desktop, gesturi pe telefon).
+1. **O scenă 3D low-poly**: o mică rețea de insulă, cu un oraș, centrale și linii. Se poate roti, apropia și muta (drag/scroll, desktop).
 2. **Adaugi și scoți surse:** hidro, gaz, nuclear, solar, eolian, baterie. Fiecare are o fișă: putere, inerție, viteză de variație, minim tehnic, CO₂.
 3. **Adaugi și scoți consumatori:** case, fabrică, centru de date, stații de încărcare EV.
 4. **HUD în timp real:**
@@ -20,8 +20,8 @@ Status: aprobat (21-10-2026), quiz scos din felia verticală. Sursa: `docs/inten
 7. **Mod liber (sandbox):** după nivel, jucătorul construiește ce vrea.
 
 ### Nefuncționale
-- Desktop și telefon, cu WebGL. Țintă: 60 fps pe un laptop obișnuit, ≥30 fps pe telefon.
-- Încărcare inițială < 3 s pe 4G (bundle < 1 MB gzip, fără modele grele).
+- Doar desktop, cu WebGL (telefonul e scos din scope de Lucian, 21-10-2026). Țintă: 60 fps pe un laptop obișnuit.
+- Încărcare inițială rapidă (bundle < 1 MB gzip, fără modele grele).
 - Tot textul în engleză.
 - Accesibil: HUD citibil fără 3D, contrast WCAG AA, comenzi de tastatură pentru meniuri.
 - Onestitate: un ecran „How real is this?” explică simplificările. Rețeaua e de insulă; România e sincronizată cu Europa continentală, unde abaterile reale sunt de câteva sutimi de Hz.

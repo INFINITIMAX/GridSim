@@ -1,0 +1,45 @@
+/* Design tokens for the interface. Colors mirror src/scene/palette.ts.
+   The theme is light and locked on purpose: the scene is a bright morning,
+   so the interface stays light (declared exception to the dark mode rule). */
+:root {
+  color-scheme: light;
+
+  /* Color */
+  --c-water: #b7c9d6;
+  --c-surface: #fbfaf6;
+  --c-surface-sunk: #f1efe7;
+  --c-line: #d6d3c8;
+  --c-ink: #232d36;
+  --c-ink-muted: #526069;
+  --c-sage: #6f8a7a;
+  --c-caution: #b9a77c;
+  --c-electric: #f2a900;
+  --c-electric-hover: #e09f00;
+  --c-danger: #b3261e;
+  --c-danger-surface: #fbeceb;
+
+  /* Type */
+  --font-text: "Geist Variable", system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.875rem;
+  --fs-md: 1rem;
+  --fs-lg: 1.25rem;
+  --fs-xl: 1.75rem;
+
+  /* Space scale (px) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+
+  /* Radius: one scale */
+  --r-panel: 10px;
+  --r-btn: 8px;
+
+  /* Layout */
+  --side-width: 340px;
+  --touch: 44px;
+  --shadow: 0 1px 2px rgb(35 45 54 / 12%), 0 4px 12px rgb(35 45 54 / 8%);
+}
