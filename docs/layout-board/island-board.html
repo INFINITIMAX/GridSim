@@ -1,0 +1,543 @@
+<title>GridSim Island Board</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: tool rail | square top-down board | side panel (selection, notes, list). One square = one scene unit. */
+:root {
+  --bg: #e4eaee;
+  --panel: #f7f9fa;
+  --ink: #1f2a33;
+  --muted: #5d6b76;
+  --line: #c9d3da;
+  --water: #b7c9d6;
+  --grass: #a9c08f;
+  --sand: #e3d4ae;
+  --accent: #e0a100;
+  --accent-ink: #1f2a33;
+  --z-houses: #c7765a;
+  --z-plant: #6f7f8c;
+  --z-substation: #d9a521;
+  --z-trees: #5d8a52;
+  --z-water: #5b8db3;
+  --z-other: #9a7fb0;
+  --font: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --mono: "Geist Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161c21; --panel: #1f272e; --ink: #e6ecf0; --muted: #98a6b1; --line: #33404a;
+    --water: #2a3d4c; --grass: #5e7451; --sand: #8c7f5c; --accent: #f0b429; --accent-ink: #161c21;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161c21; --panel: #1f272e; --ink: #e6ecf0; --muted: #98a6b1; --line: #33404a;
+  --water: #2a3d4c; --grass: #5e7451; --sand: #8c7f5c; --accent: #f0b429; --accent-ink: #161c21;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 14px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 12px; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 12px;
+}
+header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+h1 { font-size: 16px; font-weight: 600; margin: 0; }
+.status { font-family: var(--mono); font-size: 12px; color: var(--muted); padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px; }
+.status[data-kind="claude"] { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+.hint { color: var(--muted); font-size: 13px; margin-left: auto; }
+main { flex: 1; min-height: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) 280px; gap: 12px; }
+.rail, .side { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.rail { display: flex; flex-direction: column; gap: 4px; padding: 8px; }
+.rail .sep { height: 1px; background: var(--line); margin: 4px 0; }
+.tool {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  font: inherit; font-size: 13px; color: var(--ink); background: transparent;
+  border: 1px solid transparent; border-radius: 6px; padding: 6px 8px; cursor: pointer;
+}
+.tool:hover { border-color: var(--line); }
+.tool[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+.tool:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+kbd { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-left: auto; }
+.tool[aria-pressed="true"] kbd { color: inherit; opacity: .7; }
+.board { min-width: 0; min-height: 0; display: flex; align-items: center; justify-content: center; }
+svg { width: 100%; height: 100%; max-height: 100%; aspect-ratio: 1; touch-action: none; user-select: none; }
+.side { padding: 12px; display: flex; flex-direction: column; gap: 14px; overflow: auto; min-height: 0; }
+.side h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 6px; font-weight: 600; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.row { display: flex; gap: 8px; align-items: center; }
+input, select, textarea {
+  font: inherit; font-size: 13px; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 100%; box-sizing: border-box;
+}
+textarea { min-height: 110px; resize: vertical; }
+.btn { font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; }
+.btn:hover { border-color: var(--ink); }
+.btn:active { transform: translateY(1px); }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.list li { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 13px; cursor: pointer; }
+.list li:last-child { border-bottom: 0; }
+.list li .mono { margin-left: auto; font-size: 12px; color: var(--muted); }
+.list li.sel { font-weight: 600; }
+.by { font-family: var(--mono); font-size: 10px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+.empty { color: var(--muted); font-size: 13px; }
+/* svg */
+.gridline { stroke: var(--ink); stroke-opacity: .07; stroke-width: .03; }
+.gridline.major { stroke-opacity: .18; }
+.axis-label { font-family: var(--mono); font-size: .45px; fill: var(--muted); }
+.island-sand { fill: var(--sand); }
+.island-grass { fill: var(--grass); }
+.zone rect { fill-opacity: .55; stroke-width: .08; }
+.zone text { font-family: var(--font); font-size: .55px; font-weight: 600; fill: var(--ink); pointer-events: none; }
+.zone.sel rect { stroke-dasharray: .25 .15; stroke-width: .12; }
+.wire { stroke: var(--accent); stroke-width: .18; stroke-linecap: round; }
+.wire.sel { stroke-dasharray: .3 .2; }
+.wire-hit { stroke: transparent; stroke-width: .8; }
+.handle { fill: var(--panel); stroke: var(--ink); stroke-width: .07; cursor: nwse-resize; }
+.handle.island { cursor: ew-resize; }
+.cam { fill: var(--muted); font-family: var(--mono); font-size: .45px; }
+@media (max-width: 860px) {
+  main { grid-template-columns: 1fr; grid-template-rows: auto auto auto; }
+  .rail { flex-direction: row; flex-wrap: wrap; }
+  .tool { width: auto; }
+  .rail .sep { display: none; }
+  .board svg { height: auto; }
+  .hint { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header>
+  <h1>GridSim island board</h1>
+  <span class="status" id="status">Connecting…</span>
+  <span class="hint">Pick a zone type, drag on the board. One square is one scene unit.</span>
+</header>
+
+<main>
+  <nav class="rail" id="rail" aria-label="Tools"></nav>
+  <div class="board">
+    <svg id="svg" viewBox="-13 -13 26 26" role="img" aria-label="Top-down island layout">
+      <g id="grid"></g>
+      <g id="island"></g>
+      <g id="zones"></g>
+      <g id="wires"></g>
+      <g id="handles"></g>
+      <g id="draft"></g>
+    </svg>
+  </div>
+  <aside class="side">
+    <section>
+      <h2>Selected</h2>
+      <div id="selected"></div>
+    </section>
+    <section>
+      <h2>Island</h2>
+      <div class="row">
+        <label class="field" style="flex:1">Radius (units)
+          <input id="islandR" type="number" min="3" max="12" step="0.5">
+        </label>
+      </div>
+    </section>
+    <section>
+      <h2>Notes for Claude</h2>
+      <textarea id="notes" placeholder="Anything the drawing does not say: why the plant sits there, what should be visible first…"></textarea>
+    </section>
+    <section>
+      <h2>On the board</h2>
+      <ul class="list" id="list"></ul>
+    </section>
+  </aside>
+</main>
+
+<script>
+(() => {
+  const TYPES = {
+    houses: { label: "Houses", color: "var(--z-houses)" },
+    plant: { label: "Power plant", color: "var(--z-plant)" },
+    substation: { label: "Substation", color: "var(--z-substation)" },
+    trees: { label: "Trees", color: "var(--z-trees)" },
+    water: { label: "Water", color: "var(--z-water)" },
+    other: { label: "Other", color: "var(--z-other)" },
+  };
+  const TOOLS = [
+    { id: "select", label: "Select / move", key: "V" },
+    "sep",
+    ...Object.entries(TYPES).map(([id, t], i) => ({ id, label: t.label, key: String(i + 1), color: t.color })),
+    "sep",
+    { id: "wire", label: "Power line", key: "L", color: "var(--accent)" },
+  ];
+  const SNAP = 0.5;
+  const NS = "http://www.w3.org/2000/svg";
+  const DOC_PATH = "layout/island";
+
+  let state = { island: { r: 8.5 }, zones: [], wires: [], notes: "" };
+  let tool = "select";
+  let selected = null; // {kind:"zone"|"wire", id}
+  let drag = null;
+  const history = [];
+
+  const $ = (id) => document.getElementById(id);
+  const svg = $("svg");
+  const snap = (v) => Math.round(v / SNAP) * SNAP;
+  const uid = () => Math.random().toString(36).slice(2, 9);
+  const el = (name, attrs = {}, parent) => {
+    const n = document.createElementNS(NS, name);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    if (parent) parent.appendChild(n);
+    return n;
+  };
+  function toWorld(evt) {
+    const p = svg.createSVGPoint();
+    p.x = evt.clientX; p.y = evt.clientY;
+    const w = p.matrixTransform(svg.getScreenCTM().inverse());
+    return { x: w.x, y: w.y };
+  }
+  const clone = (o) => JSON.parse(JSON.stringify(o));
+
+  // ---------- rendering ----------
+  function drawGrid() {
+    const g = $("grid");
+    for (let i = -12; i <= 12; i++) {
+      const major = i % 5 === 0;
+      el("line", { x1: i, y1: -12, x2: i, y2: 12, class: "gridline" + (major ? " major" : "") }, g);
+      el("line", { x1: -12, y1: i, x2: 12, y2: i, class: "gridline" + (major ? " major" : "") }, g);
+      if (major) {
+        el("text", { x: i, y: 12.7, "text-anchor": "middle", class: "axis-label" }, g).textContent = i;
+        el("text", { x: -12.5, y: i + 0.15, "text-anchor": "end", class: "axis-label" }, g).textContent = i;
+      }
+    }
+    // The 3D camera looks at the island from +x,+z (bottom-right of this board).
+    const cam = el("g", { class: "cam" }, g);
+    el("path", { d: "M 11.6 11.6 L 10.6 11.2 L 11.2 10.6 Z" }, cam);
+    el("text", { x: 12.4, y: 12.2, "text-anchor": "end" }, cam).textContent = "camera";
+  }
+
+  function render() {
+    const island = $("island");
+    island.replaceChildren();
+    el("circle", { cx: 0, cy: 0, r: state.island.r + 0.5, class: "island-sand" }, island);
+    el("circle", { cx: 0, cy: 0, r: state.island.r, class: "island-grass" }, island);
+
+    const zones = $("zones");
+    zones.replaceChildren();
+    for (const z of state.zones) {
+      const t = TYPES[z.type] || TYPES.other;
+      const isSel = selected?.kind === "zone" && selected.id === z.id;
+      const g = el("g", { class: "zone" + (isSel ? " sel" : ""), "data-id": z.id }, zones);
+      el("rect", { x: z.x, y: z.y, width: z.w, height: z.h, rx: 0.2, fill: t.color, stroke: t.color, style: "cursor:move" }, g);
+      el("text", { x: z.x + 0.25, y: z.y + 0.7 }, g).textContent = z.label || t.label;
+    }
+
+    const wires = $("wires");
+    wires.replaceChildren();
+    for (const w of state.wires) {
+      const isSel = selected?.kind === "wire" && selected.id === w.id;
+      const g = el("g", { "data-wire": w.id, style: "cursor:pointer" }, wires);
+      el("line", { x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2, class: "wire" + (isSel ? " sel" : "") }, g);
+      el("line", { x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2, class: "wire-hit" }, g);
+    }
+
+    const handles = $("handles");
+    handles.replaceChildren();
+    if (tool === "select") {
+      el("circle", { cx: state.island.r, cy: 0, r: 0.35, class: "handle island", "data-handle": "island" }, handles);
+      if (selected?.kind === "zone") {
+        const z = state.zones.find((q) => q.id === selected.id);
+        if (z) el("rect", { x: z.x + z.w - 0.3, y: z.y + z.h - 0.3, width: 0.6, height: 0.6, class: "handle", "data-handle": "resize" }, handles);
+      }
+    }
+    renderSide();
+  }
+
+  function renderSide() {
+    if (document.activeElement !== $("islandR")) $("islandR").value = state.island.r;
+    if (document.activeElement !== $("notes")) $("notes").value = state.notes || "";
+
+    const box = $("selected");
+    box.replaceChildren();
+    const z = selected?.kind === "zone" && state.zones.find((q) => q.id === selected.id);
+    const w = selected?.kind === "wire" && state.wires.find((q) => q.id === selected.id);
+    if (z) {
+      box.innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <label class="field">Name<input id="selLabel" maxlength="40"></label>
+          <label class="field">Type<select id="selType"></select></label>
+          <div class="mono" style="font-size:12px;color:var(--muted)">x ${z.x} · z ${z.y} · ${z.w} × ${z.h}</div>
+          <div class="row"><button class="btn" id="selDel" type="button">Delete</button></div>
+        </div>`;
+      const sel = $("selType");
+      for (const [id, t] of Object.entries(TYPES)) {
+        const o = document.createElement("option");
+        o.value = id; o.textContent = t.label; sel.appendChild(o);
+      }
+      sel.value = z.type;
+      $("selLabel").value = z.label || "";
+      $("selLabel").addEventListener("input", (e) => { mutate(() => { z.label = e.target.value; z.by = "lucian"; }, { silentRender: true }); renderBoardOnly(); });
+      sel.addEventListener("change", (e) => mutate(() => { z.type = e.target.value; z.by = "lucian"; }));
+      $("selDel").addEventListener("click", deleteSelected);
+    } else if (w) {
+      box.innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div class="mono" style="font-size:12px;color:var(--muted)">Line (${w.x1}, ${w.y1}) to (${w.x2}, ${w.y2})</div>
+          <div class="row"><button class="btn" id="selDel" type="button">Delete</button></div>
+        </div>`;
+      $("selDel").addEventListener("click", deleteSelected);
+    } else {
+      box.innerHTML = `<p class="empty" style="margin:0">Nothing selected. Click a zone or line with Select.</p>`;
+    }
+
+    const list = $("list");
+    list.replaceChildren();
+    if (!state.zones.length && !state.wires.length) {
+      const li = document.createElement("li");
+      li.className = "empty"; li.style.cursor = "default";
+      li.textContent = "Empty. Pick Houses or Power plant and drag on the island.";
+      list.appendChild(li);
+    }
+    for (const q of state.zones) {
+      const t = TYPES[q.type] || TYPES.other;
+      const li = document.createElement("li");
+      if (selected?.id === q.id) li.className = "sel";
+      li.innerHTML = `<span class="swatch" style="background:${t.color}"></span><span></span>${q.by === "claude" ? '<span class="by">Claude</span>' : ""}<span class="mono">${q.w}×${q.h}</span>`;
+      li.children[1].textContent = q.label || t.label;
+      li.addEventListener("click", () => { selected = { kind: "zone", id: q.id }; setTool("select"); });
+      list.appendChild(li);
+    }
+    for (const q of state.wires) {
+      const li = document.createElement("li");
+      if (selected?.id === q.id) li.className = "sel";
+      const len = Math.hypot(q.x2 - q.x1, q.y2 - q.y1).toFixed(1);
+      li.innerHTML = `<span class="swatch" style="background:var(--accent)"></span><span>Power line</span>${q.by === "claude" ? '<span class="by">Claude</span>' : ""}<span class="mono">${len}</span>`;
+      li.addEventListener("click", () => { selected = { kind: "wire", id: q.id }; setTool("select"); });
+      list.appendChild(li);
+    }
+  }
+
+  function renderBoardOnly() {
+    const z = selected?.kind === "zone" && state.zones.find((q) => q.id === selected.id);
+    const node = z && document.querySelector(`.zone[data-id="${z.id}"] text`);
+    if (node) node.textContent = z.label || TYPES[z.type].label;
+  }
+
+  function buildRail() {
+    const rail = $("rail");
+    for (const t of TOOLS) {
+      if (t === "sep") { const d = document.createElement("div"); d.className = "sep"; rail.appendChild(d); continue; }
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "tool"; b.dataset.tool = t.id;
+      b.innerHTML = `${t.color ? `<span class="swatch" style="background:${t.color}"></span>` : `<span class="swatch" style="border:1.5px solid currentColor"></span>`}<span></span><kbd>${t.key}</kbd>`;
+      b.children[1].textContent = t.label;
+      b.addEventListener("click", () => setTool(t.id));
+      rail.appendChild(b);
+    }
+    rail.appendChild(Object.assign(document.createElement("div"), { className: "sep" }));
+    const undo = document.createElement("button");
+    undo.type = "button"; undo.className = "tool";
+    undo.innerHTML = `<span class="swatch"></span><span>Undo</span><kbd>Ctrl Z</kbd>`;
+    undo.addEventListener("click", undoLast);
+    rail.appendChild(undo);
+  }
+
+  function setTool(id) {
+    tool = id;
+    for (const b of document.querySelectorAll(".tool[data-tool]")) b.setAttribute("aria-pressed", String(b.dataset.tool === id));
+    svg.style.cursor = id === "select" ? "default" : "crosshair";
+    render();
+  }
+
+  // ---------- edits + sync ----------
+  function mutate(fn, { silentRender = false } = {}) {
+    history.push(clone(state));
+    if (history.length > 80) history.shift();
+    fn();
+    if (!silentRender) render();
+    scheduleSave();
+  }
+  function undoLast() {
+    const prev = history.pop();
+    if (!prev) return;
+    state = prev;
+    if (selected && !state.zones.some((q) => q.id === selected.id) && !state.wires.some((q) => q.id === selected.id)) selected = null;
+    render();
+    scheduleSave();
+  }
+  function deleteSelected() {
+    if (!selected) return;
+    const id = selected.id;
+    mutate(() => {
+      state.zones = state.zones.filter((q) => q.id !== id);
+      state.wires = state.wires.filter((q) => q.id !== id);
+      selected = null;
+    });
+  }
+
+  let db = null, docRef = null, saveTimer = null, saving = false, pendingSave = false, lastSynced = "";
+  function setStatus(text, kind) { const s = $("status"); s.textContent = text; s.dataset.kind = kind || ""; }
+  function scheduleSave() {
+    if (!docRef) { setStatus("Local only (not saved)"); return; }
+    setStatus("Saving…");
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(flush, 500);
+  }
+  async function flush() {
+    if (saving) { pendingSave = true; return; }
+    if (drag) { saveTimer = setTimeout(flush, 300); return; }
+    saving = true;
+    const body = { island: state.island, zones: state.zones, wires: state.wires, notes: state.notes || "", updatedBy: "lucian", updatedAt: new Date().toISOString() };
+    const key = JSON.stringify({ island: body.island, zones: body.zones, wires: body.wires, notes: body.notes });
+    try {
+      await docRef.set(body);
+      lastSynced = key;
+      setStatus("Saved");
+    } catch (e) {
+      setStatus(e?.code === "invalid_argument" ? "Read only" : "Save failed, retrying");
+      if (e?.code === "unavailable") { setTimeout(flush, 1200 + Math.random() * 800); }
+    } finally {
+      saving = false;
+      if (pendingSave) { pendingSave = false; flush(); }
+    }
+  }
+  function applyRemote(data) {
+    const incoming = {
+      island: data.island && typeof data.island.r === "number" ? { r: data.island.r } : { r: 8.5 },
+      zones: Array.isArray(data.zones) ? data.zones : [],
+      wires: Array.isArray(data.wires) ? data.wires : [],
+      notes: typeof data.notes === "string" ? data.notes : "",
+    };
+    const key = JSON.stringify(incoming);
+    if (key === lastSynced) return;
+    if (drag || saving || saveTimer && $("status").textContent === "Saving…") return; // local edit in flight wins
+    lastSynced = key;
+    state = incoming;
+    if (selected && !state.zones.some((q) => q.id === selected.id) && !state.wires.some((q) => q.id === selected.id)) selected = null;
+    render();
+    if (data.updatedBy === "claude") setStatus("Updated by Claude", "claude");
+    else setStatus("Synced");
+  }
+  async function connect() {
+    try {
+      db = await window.claude?.use?.("db");
+    } catch { db = null; }
+    if (!db) { setStatus("Local only (not saved)"); return; }
+    docRef = db.doc(DOC_PATH);
+    setStatus("Synced");
+    docRef.onSnapshot(
+      (snap) => { if (snap.exists) applyRemote(snap.data()); },
+      () => setStatus("Connection lost, reload"),
+    );
+  }
+
+  // ---------- pointer ----------
+  svg.addEventListener("pointerdown", (evt) => {
+    const p = toWorld(evt);
+    const handle = evt.target.closest("[data-handle]");
+    const zoneNode = evt.target.closest(".zone");
+    const wireNode = evt.target.closest("[data-wire]");
+    svg.setPointerCapture(evt.pointerId);
+
+    if (tool === "select") {
+      if (handle?.dataset.handle === "island") { history.push(clone(state)); drag = { mode: "island" }; return; }
+      if (handle?.dataset.handle === "resize") { history.push(clone(state)); drag = { mode: "resize", id: selected.id }; return; }
+      if (zoneNode) {
+        const z = state.zones.find((q) => q.id === zoneNode.dataset.id);
+        selected = { kind: "zone", id: z.id };
+        history.push(clone(state));
+        drag = { mode: "move", id: z.id, dx: p.x - z.x, dy: p.y - z.y, moved: false };
+        render();
+        return;
+      }
+      if (wireNode) { selected = { kind: "wire", id: wireNode.dataset.wire }; render(); return; }
+      selected = null; render(); return;
+    }
+    const start = { x: snap(p.x), y: snap(p.y) };
+    drag = { mode: tool === "wire" ? "wire" : "rect", start, end: start };
+  });
+
+  svg.addEventListener("pointermove", (evt) => {
+    if (!drag) return;
+    const p = toWorld(evt);
+    if (drag.mode === "island") {
+      state.island.r = Math.min(12, Math.max(3, snap(Math.hypot(p.x, p.y))));
+      render(); return;
+    }
+    if (drag.mode === "move") {
+      const z = state.zones.find((q) => q.id === drag.id);
+      const nx = snap(p.x - drag.dx), ny = snap(p.y - drag.dy);
+      if (nx !== z.x || ny !== z.y) { z.x = nx; z.y = ny; z.by = "lucian"; drag.moved = true; render(); }
+      return;
+    }
+    if (drag.mode === "resize") {
+      const z = state.zones.find((q) => q.id === drag.id);
+      z.w = Math.max(SNAP, snap(p.x - z.x)); z.h = Math.max(SNAP, snap(p.y - z.y)); z.by = "lucian";
+      render(); return;
+    }
+    drag.end = { x: snap(p.x), y: snap(p.y) };
+    const d = $("draft");
+    d.replaceChildren();
+    if (drag.mode === "wire") {
+      el("line", { x1: drag.start.x, y1: drag.start.y, x2: drag.end.x, y2: drag.end.y, class: "wire", "stroke-opacity": 0.6 }, d);
+    } else {
+      const r = rectOf(drag.start, drag.end);
+      const c = TYPES[tool].color;
+      el("rect", { ...r, rx: 0.2, fill: c, "fill-opacity": 0.35, stroke: c, "stroke-width": 0.08, "stroke-dasharray": ".25 .15" }, d);
+    }
+  });
+
+  function rectOf(a, b) {
+    return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), width: Math.abs(b.x - a.x), height: Math.abs(b.y - a.y) };
+  }
+
+  function endDrag() {
+    if (!drag) return;
+    const d = drag;
+    drag = null;
+    $("draft").replaceChildren();
+    if (d.mode === "island" || d.mode === "resize") { render(); scheduleSave(); return; }
+    if (d.mode === "move") { if (d.moved) scheduleSave(); else history.pop(); return; }
+    if (d.mode === "wire") {
+      if (d.start.x === d.end.x && d.start.y === d.end.y) return;
+      const w = { id: uid(), x1: d.start.x, y1: d.start.y, x2: d.end.x, y2: d.end.y, by: "lucian" };
+      mutate(() => { state.wires.push(w); selected = { kind: "wire", id: w.id }; });
+      return;
+    }
+    const r = rectOf(d.start, d.end);
+    if (r.width < SNAP || r.height < SNAP) return;
+    const z = { id: uid(), type: tool, label: "", x: r.x, y: r.y, w: r.width, h: r.height, by: "lucian" };
+    mutate(() => { state.zones.push(z); selected = { kind: "zone", id: z.id }; });
+  }
+  svg.addEventListener("pointerup", endDrag);
+  svg.addEventListener("pointercancel", endDrag);
+
+  // ---------- side inputs + keys ----------
+  $("islandR").addEventListener("change", (e) => {
+    const v = Math.min(12, Math.max(3, snap(Number(e.target.value) || 8.5)));
+    mutate(() => { state.island.r = v; });
+  });
+  let notesTimer = null;
+  $("notes").addEventListener("input", (e) => {
+    clearTimeout(notesTimer);
+    const v = e.target.value;
+    notesTimer = setTimeout(() => mutate(() => { state.notes = v; }, { silentRender: true }), 400);
+  });
+  document.addEventListener("keydown", (e) => {
+    const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || "");
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !typing) { e.preventDefault(); undoLast(); return; }
+    if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === "Delete" || e.key === "Backspace") { deleteSelected(); return; }
+    if (e.key === "Escape") { selected = null; setTool("select"); return; }
+    const t = TOOLS.find((q) => q !== "sep" && q.key.toLowerCase() === e.key.toLowerCase());
+    if (t) setTool(t.id);
+  });
+
+  drawGrid();
+  buildRail();
+  setTool("select");
+  connect();
+})();
+</script>

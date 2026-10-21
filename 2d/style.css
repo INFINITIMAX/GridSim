@@ -1,0 +1,89 @@
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+
+:root {
+  --sky: #b7c9d6;
+  --panel: #f7f9fa;
+  --ink: #1f2a33;
+  --muted: #5d6b76;
+  --line: #c9d3da;
+  --font: "Geist Variable", system-ui, sans-serif;
+  --mono: "Geist Mono Variable", ui-monospace, monospace;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--sky);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 14px;
+  overflow: hidden;
+}
+
+canvas {
+  display: block;
+  width: 100vw;
+  height: 100dvh;
+}
+
+.panel {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.step {
+  color: var(--muted);
+}
+
+.group {
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.group button {
+  font: inherit;
+  font-size: 13px;
+  padding: 4px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.group button[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--panel);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.readout {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  padding: 6px 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
