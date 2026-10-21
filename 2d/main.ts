@@ -1,7 +1,13 @@
-// GridSim 2D, step 1: a green work area, a flowing river, one tiny hydro plant.
+// GridSim 2D, step 2: a green work area, a flowing river, one hydro plant you can click, inspect and upgrade.
 // Everything is drawn in tile space (1 unit = 1 tile); the view only changes the transform.
 
+import { turbineById } from "./hydro";
+import { createPanel, type PanelState } from "./panel";
+
 // ---------- Everything you might want to change lives here ----------
+
+/** Zooming in on the plant: how far, and how long it takes (ease-out). */
+const CAMERA = { plantZoom: 2.6, animationMs: 600 };
 
 const MAP = { cols: 32, rows: 20 };
 
@@ -15,6 +21,8 @@ const COLORS = {
   streak: "#d9eef8",
   gridLine: "rgba(31, 42, 51, 0.12)",
   hover: "rgba(255, 255, 255, 0.35)",
+  plantOutline: "#ffffff",
+  foam: "#ffffff",
   concreteTop: "#d4cfc3",
   concreteSide: "#aaa497",
   concreteFront: "#bdb7aa",
@@ -39,9 +47,12 @@ const RIVER = {
     [20, 13],
     [33, 13],
   ] as [number, number][],
-  /** Tiles per second. */
+  /** Tiles per second at the reference flow. */
   flowSpeed: 1.6,
   streaks: 70,
+  /** River flow (m³/s) at which streaks move at `flowSpeed`; they scale with flow, never slower than `minSpeedFactor`. */
+  referenceFlow: 3,
+  minSpeedFactor: 0.25,
 };
 
 const HYDRO = {
@@ -53,8 +64,15 @@ const HYDRO = {
   /** The powerhouse stands on this bank: 1 = left of the flow, -1 = right. */
   bank: 1,
   house: { length: 1.8, depth: 1.4, height: 1.0 },
-  /** Turbine turns per second. */
-  rotorSpeed: 1.2,
+  /** Rotor turns per second at full load; slower at part load. */
+  maxTurnsPerSecond: 1.6,
+  /** Opacity of rotors that are not running. */
+  idleRotorAlpha: 0.4,
+  /** Spill foam below the dam: length in tiles along the river, and opacity when everything spills. */
+  foam: { length: 0.9, maxAlpha: 0.85 },
+  /** Extra tiles around the plant that still count as pointing at it, and the gap of the hover outline. */
+  hitMargin: 0.2,
+  outlinePad: 0.12,
 };
 
 // ---------- Geometry helpers ----------
@@ -122,11 +140,38 @@ for (let row = 0; row < MAP.rows; row++) {
 const damS = nearestOnRiver(HYDRO.at.x, HYDRO.at.y).s;
 const dam = riverAt(damS);
 
+// Footprints of the plant, shared by drawing, hovering and clicking.
+const damFootprint = orientedRect(dam.p, dam.t, dam.n, HYDRO.damThickness, RIVER.width + 0.8);
+const houseOffset = HYDRO.bank * (RIVER.width / 2 + 0.4 + HYDRO.house.depth / 2);
+const houseCentre = { x: dam.p.x + dam.n.x * houseOffset, y: dam.p.y + dam.n.y * houseOffset };
+const houseFootprint = orientedRect(houseCentre, dam.t, dam.n, HYDRO.house.length, HYDRO.house.depth);
+
+/** Is this tile-space point on the dam or the powerhouse (plus a small margin)? */
+function onPlant(p: Vec): boolean {
+  const m = HYDRO.hitMargin;
+  const inside = (c: Vec, along: number, across: number): boolean => {
+    const dx = p.x - c.x;
+    const dy = p.y - c.y;
+    return Math.abs(dx * dam.t.x + dy * dam.t.y) <= along / 2 + m && Math.abs(dx * dam.n.x + dy * dam.n.y) <= across / 2 + m;
+  };
+  return inside(dam.p, HYDRO.damThickness, RIVER.width + 0.8) || inside(houseCentre, HYDRO.house.length, HYDRO.house.depth);
+}
+
+/** Is this screen point on the plant? In iso the walls and roof stand above their footprint, so test a few heights too. */
+function plantAtScreen(sx: number, sy: number): boolean {
+  const lifts = view === "iso" ? [0, 0.25, 0.5, 0.75, 1].map((k) => k * HYDRO.house.height) : [0];
+  return lifts.some((lift) => onPlant(toTile(sx, sy + lift * unit)));
+}
+
 // ---------- View: top-down or isometric ----------
 
 type View = "top" | "iso";
-let view: View = "iso";
+let view: View = "top";
 let showGrid = false;
+
+// The plant, as the panel last configured it.
+let plant: PanelState;
+const upgradeRoot = document.getElementById("upgrade")!;
 
 const canvas = document.getElementById("world") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;
@@ -138,22 +183,34 @@ let unit = 1;
 let originX = 0;
 let originY = 0;
 
+/**
+ * Camera: `zoom` multiplies the fitted scale, `focus` (tile space) is the point shown in the middle of the free area.
+ * Without a focus the whole map stays centred. The free area is the screen left of the panel; it grows into view with `zoomAmount`.
+ */
+const camera: { zoom: number; focus: Vec | null } = { zoom: 1, focus: null };
+
 function fit(): void {
   dpr = window.devicePixelRatio || 1;
   cssW = window.innerWidth;
   cssH = window.innerHeight;
   canvas.width = Math.round(cssW * dpr);
   canvas.height = Math.round(cssH * dpr);
+  layout();
+}
+
+/** Work out scale and origin for the current view and camera. Cheap, runs every frame while the camera moves. */
+function layout(): void {
   const { cols, rows } = MAP;
-  if (view === "top") {
-    unit = Math.min((cssW * 0.9) / cols, (cssH * 0.8) / rows);
-    originX = cssW / 2 - (cols / 2) * unit;
-    originY = cssH / 2 - (rows / 2) * unit;
-  } else {
-    unit = Math.min((cssW * 0.9) / (cols + rows), (cssH * 0.8) / ((cols + rows) / 2));
-    originX = cssW / 2 - ((cols - rows) / 2) * unit;
-    originY = cssH / 2 - ((cols + rows) / 4) * unit;
-  }
+  const base = view === "top" ? Math.min((cssW * 0.9) / cols, (cssH * 0.8) / rows) : Math.min((cssW * 0.9) / (cols + rows), (cssH * 0.8) / ((cols + rows) / 2));
+  unit = base * camera.zoom;
+  const focus = camera.focus ?? { x: cols / 2, y: rows / 2 };
+  const centreX = camera.focus ? cssW / 2 + ((cssW - upgradeRoot.offsetWidth) / 2 - cssW / 2) * zoomAmount : cssW / 2;
+  // Put the focus point exactly at the centre of the free area.
+  originX = 0;
+  originY = 0;
+  const at = toScreen(focus.x, focus.y);
+  originX = centreX - at.x;
+  originY = cssH / 2 - at.y;
 }
 
 /** Tile space to screen (CSS px). `lift` raises a point by that many tiles. */
@@ -276,6 +333,7 @@ function flowFactor(s: number): number {
 }
 
 function drawStreaks(dt: number): void {
+  const speedScale = Math.max(plant.riverFlow / RIVER.referenceFlow, RIVER.minSpeedFactor);
   useTileTransform();
   ctx.save();
   ctx.beginPath();
@@ -288,7 +346,7 @@ function drawStreaks(dt: number): void {
   ctx.beginPath();
   for (const q of streaks) {
     const before = q.s;
-    q.s += RIVER.flowSpeed * flowFactor(q.s) * dt;
+    q.s += RIVER.flowSpeed * speedScale * flowFactor(q.s) * dt;
     // Streaks do not pass through the dam wall; they pop out on the far side.
     if (before < damS - HYDRO.damThickness / 2 && q.s >= damS - HYDRO.damThickness / 2) q.s = damS + HYDRO.damThickness / 2;
     if (q.s > riverLength) q.s -= riverLength;
@@ -303,45 +361,97 @@ function drawStreaks(dt: number): void {
   ctx.restore();
 }
 
-let rotorAngle = 0;
+/** White foam right below the dam, only when water goes over it. More foam the larger the share spilled. */
+function drawSpill(): void {
+  const { spilledFlow } = plant.op;
+  if (spilledFlow <= 0 || plant.riverFlow <= 0) return;
+  const { p, t, n } = dam;
+  const d = (HYDRO.damThickness + HYDRO.foam.length) / 2;
+  const foam = orientedRect({ x: p.x + t.x * d, y: p.y + t.y * d }, t, n, HYDRO.foam.length, RIVER.width);
+  useTileTransform();
+  ctx.globalAlpha = HYDRO.foam.maxAlpha * Math.min(spilledFlow / plant.riverFlow, 1);
+  ctx.beginPath();
+  ctx.moveTo(foam[0]!.x, foam[0]!.y);
+  for (const q of foam.slice(1)) ctx.lineTo(q.x, q.y);
+  ctx.closePath();
+  ctx.fillStyle = COLORS.foam;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+/** One angle per rotor slot; a rotor only turns while it is running. */
+const rotorAngles = new Array<number>(8).fill(0);
 
 function drawHydro(dt: number): void {
-  const { p, t, n } = dam;
+  const { p, n } = dam;
   // Dam: a low concrete wall across the whole river, a little wider than the water.
-  prism(orientedRect(p, t, n, HYDRO.damThickness, RIVER.width + 0.8), HYDRO.damHeight, COLORS.concreteTop, COLORS.concreteSide, COLORS.concreteFront);
+  prism(damFootprint, HYDRO.damHeight, COLORS.concreteTop, COLORS.concreteSide, COLORS.concreteFront);
 
   // Powerhouse on the bank, next to the dam.
-  const side = HYDRO.bank;
-  const houseCentre = {
-    x: p.x + n.x * side * (RIVER.width / 2 + 0.4 + HYDRO.house.depth / 2),
-    y: p.y + n.y * side * (RIVER.width / 2 + 0.4 + HYDRO.house.depth / 2),
-  };
-  prism(orientedRect(houseCentre, t, n, HYDRO.house.length, HYDRO.house.depth), HYDRO.house.height, COLORS.roof, COLORS.wallSide, COLORS.wallFront);
+  prism(houseFootprint, HYDRO.house.height, COLORS.roof, COLORS.wallSide, COLORS.wallFront);
 
-  // Turbine: a small rotor sitting on the dam, in the middle of the flow.
-  rotorAngle += HYDRO.rotorSpeed * Math.PI * 2 * dt;
+  // Rotors: one per turbine, spread evenly across the river along the dam.
+  const { setup, op } = plant;
+  const radius = turbineById(setup.turbine).radius;
   useScreenTransform();
-  const hub = toScreen(p.x, p.y, HYDRO.damHeight);
-  ctx.strokeStyle = COLORS.rotor;
-  ctx.lineWidth = Math.max(1.5, unit * 0.09);
   ctx.lineCap = "round";
-  ctx.beginPath();
-  for (let i = 0; i < 4; i++) {
-    const a = rotorAngle + (i * Math.PI) / 2;
-    const tip = toScreen(p.x + Math.cos(a) * 0.55, p.y + Math.sin(a) * 0.55, HYDRO.damHeight);
-    ctx.moveTo(hub.x, hub.y);
-    ctx.lineTo(tip.x, tip.y);
-  }
-  ctx.stroke();
+  ctx.strokeStyle = COLORS.rotor;
   ctx.fillStyle = COLORS.rotor;
-  ctx.beginPath();
-  ctx.arc(hub.x, hub.y, Math.max(2, unit * 0.1), 0, Math.PI * 2);
-  ctx.fill();
+  ctx.lineWidth = Math.max(1.5, unit * 0.09);
+  for (let i = 0; i < setup.count; i++) {
+    const running = i < op.running;
+    if (running) rotorAngles[i] = rotorAngles[i]! + HYDRO.maxTurnsPerSecond * op.load * Math.PI * 2 * dt;
+    const across = -RIVER.width / 2 + (RIVER.width * (i + 0.5)) / setup.count;
+    const cx = p.x + n.x * across;
+    const cy = p.y + n.y * across;
+    const hub = toScreen(cx, cy, HYDRO.damHeight);
+    ctx.globalAlpha = running ? 1 : HYDRO.idleRotorAlpha;
+    ctx.beginPath();
+    for (let b = 0; b < 4; b++) {
+      const a = rotorAngles[i]! + (b * Math.PI) / 2;
+      const tip = toScreen(cx + Math.cos(a) * radius, cy + Math.sin(a) * radius, HYDRO.damHeight);
+      ctx.moveTo(hub.x, hub.y);
+      ctx.lineTo(tip.x, tip.y);
+    }
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(hub.x, hub.y, Math.max(2, unit * 0.06), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+/** Thin white outline around the plant while the mouse is over it. */
+function drawPlantOutline(): void {
+  useTileTransform();
+  ctx.strokeStyle = COLORS.plantOutline;
+  ctx.lineWidth = 2 / unit;
+  ctx.lineJoin = "round";
+  for (const footprint of [damFootprint, houseFootprint]) {
+    // Grow the footprint outwards from its centre by the outline gap.
+    const c = footprint.reduce((s, q) => ({ x: s.x + q.x / 4, y: s.y + q.y / 4 }), { x: 0, y: 0 });
+    const grow = (q: Vec): Vec => {
+      const dx = q.x - c.x;
+      const dy = q.y - c.y;
+      const u = dx * dam.t.x + dy * dam.t.y;
+      const v = dx * dam.n.x + dy * dam.n.y;
+      const su = (Math.abs(u) + HYDRO.outlinePad) / Math.abs(u);
+      const sv = (Math.abs(v) + HYDRO.outlinePad) / Math.abs(v);
+      return { x: c.x + dam.t.x * u * su + dam.n.x * v * sv, y: c.y + dam.t.y * u * su + dam.n.y * v * sv };
+    };
+    const pts = footprint.map(grow);
+    ctx.beginPath();
+    ctx.moveTo(pts[0]!.x, pts[0]!.y);
+    for (const q of pts.slice(1)) ctx.lineTo(q.x, q.y);
+    ctx.closePath();
+    ctx.stroke();
+  }
 }
 
 // ---------- Hover readout ----------
 
 let hover: Vec | null = null;
+let hoverOnPlant = false;
 const readout = document.getElementById("readout")!;
 
 function describeHover(): string {
@@ -349,8 +459,8 @@ function describeHover(): string {
   const col = Math.floor(hover.x);
   const row = Math.floor(hover.y);
   if (col < 0 || row < 0 || col >= MAP.cols || row >= MAP.rows) return "Outside the map";
-  const nearDam = Math.hypot(hover.x - dam.p.x, hover.y - dam.p.y) < RIVER.width;
-  return `tile ${col}, ${row} · ${nearDam ? HYDRO.name : tiles[row]![col]!}`;
+  if (hoverOnPlant) return `tile ${col}, ${row} · ${HYDRO.name} · ${Math.round(plant.op.powerKW)} kW`;
+  return `tile ${col}, ${row} · ${tiles[row]![col]!}`;
 }
 
 function drawHover(): void {
@@ -363,13 +473,73 @@ function drawHover(): void {
   ctx.fillRect(col, row, 1, 1);
 }
 
+function refreshHover(): void {
+  canvas.style.cursor = hoverOnPlant ? "pointer" : "";
+  readout.textContent = describeHover();
+}
+
 canvas.addEventListener("pointermove", (e) => {
   hover = toTile(e.clientX, e.clientY);
-  readout.textContent = describeHover();
+  hoverOnPlant = plantAtScreen(e.clientX, e.clientY);
+  refreshHover();
 });
 canvas.addEventListener("pointerleave", () => {
   hover = null;
-  readout.textContent = describeHover();
+  hoverOnPlant = false;
+  refreshHover();
+});
+
+// ---------- Opening and closing the plant ----------
+
+/** 0 = overview, 1 = zoomed on the plant. The camera is derived from this one number. */
+let zoomAmount = 0;
+let zoomAnim: { from: number; to: number; start: number } | null = null;
+
+function animateZoomTo(target: number): void {
+  zoomAnim = { from: zoomAmount, to: target, start: performance.now() };
+}
+
+function stepCamera(now: number): void {
+  if (!zoomAnim) return;
+  const progress = Math.min(Math.max((now - zoomAnim.start) / CAMERA.animationMs, 0), 1);
+  zoomAmount = zoomAnim.from + (zoomAnim.to - zoomAnim.from) * (1 - (1 - progress) ** 3);
+  if (progress >= 1) zoomAnim = null;
+  const lerp = (a: number, b: number): number => a + (b - a) * zoomAmount;
+  camera.zoom = lerp(1, CAMERA.plantZoom);
+  camera.focus = zoomAmount > 0 ? { x: lerp(MAP.cols / 2, dam.p.x), y: lerp(MAP.rows / 2, dam.p.y) } : null;
+  layout();
+}
+
+function openPlant(): void {
+  setView("iso");
+  animateZoomTo(1);
+  panel.setOpen(true);
+}
+
+function closePlant(): void {
+  if (!panel.isOpen()) return;
+  panel.setOpen(false);
+  setView("top");
+  animateZoomTo(0);
+}
+
+const panel = createPanel(
+  upgradeRoot,
+  (state) => {
+    plant = state;
+    refreshHover();
+  },
+  closePlant,
+);
+plant = panel.state;
+
+canvas.addEventListener("click", (e) => {
+  const onIt = plantAtScreen(e.clientX, e.clientY);
+  if (onIt && !panel.isOpen()) openPlant();
+  else if (!onIt) closePlant();
+});
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closePlant();
 });
 
 // ---------- Controls ----------
@@ -378,7 +548,7 @@ const viewButtons = Array.from(document.querySelectorAll<HTMLButtonElement>("[da
 function setView(next: View): void {
   view = next;
   for (const b of viewButtons) b.setAttribute("aria-pressed", String(b.dataset.view === next));
-  fit();
+  layout();
 }
 for (const b of viewButtons) b.addEventListener("click", () => setView(b.dataset.view as View));
 const gridToggle = document.getElementById("grid") as HTMLInputElement;
@@ -391,15 +561,19 @@ let last = performance.now();
 function frame(now: number): void {
   const dt = Math.min((now - last) / 1000, 0.1);
   last = now;
+  stepCamera(now);
   useScreenTransform();
   ctx.clearRect(0, 0, cssW, cssH);
   drawGroundSlab();
   drawTiles();
   drawStreaks(dt);
   drawHover();
+  drawSpill();
   drawHydro(dt);
+  if (hoverOnPlant) drawPlantOutline();
   requestAnimationFrame(frame);
 }
 
-setView("iso");
+fit();
+setView("top");
 requestAnimationFrame(frame);

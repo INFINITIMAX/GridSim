@@ -7,7 +7,11 @@
   --ink: #1f2a33;
   --muted: #5d6b76;
   --line: #c9d3da;
-  --font: "Geist Variable", system-ui, sans-serif;
+  --water: #5b93bf;
+  --spill: #aeb9c1;
+  --accent: #2f6f9f;
+  --panel-width: 340px;
+  --font:"Geist Variable", system-ui, sans-serif;
   --mono: "Geist Mono Variable", ui-monospace, monospace;
 }
 
@@ -73,6 +77,285 @@ canvas {
   gap: 6px;
   font-size: 13px;
   cursor: pointer;
+}
+
+/* ---------- Upgrade panel ---------- */
+
+.upgrade {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--panel-width);
+  box-sizing: border-box;
+  padding: 16px;
+  overflow-y: auto;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  transform: translateX(100%);
+  visibility: hidden;
+  transition: transform 0.3s ease-out, visibility 0.3s;
+}
+
+.upgrade.open {
+  transform: none;
+  visibility: visible;
+}
+
+.upgrade h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.upgrade h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.upgrade section {
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+
+.upgrade p {
+  margin: 0 0 4px;
+}
+
+.up-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding-bottom: 14px;
+}
+
+.up-sub,
+.up-muted {
+  color: var(--muted);
+}
+
+.upgrade button {
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.up-close {
+  width: 28px;
+  height: 28px;
+  font-size: 20px;
+  line-height: 1;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+}
+
+.up-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.up-option {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  padding: 8px 10px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+}
+
+.up-option[aria-checked="true"] {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.up-option-name {
+  font-weight: 600;
+}
+
+.up-option-meta,
+.up-option-eff {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.up-option-eff {
+  grid-row: 2;
+  grid-column: 2;
+}
+
+.up-option-meta {
+  grid-row: 2;
+  grid-column: 1;
+}
+
+.up-stepper {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.up-stepper button {
+  width: 36px;
+  height: 32px;
+  font-size: 18px;
+  border: 0;
+  background: transparent;
+}
+
+.up-stepper button:disabled {
+  color: var(--line);
+  cursor: default;
+}
+
+.up-stepper output {
+  min-width: 36px;
+  text-align: center;
+  font-family: var(--mono);
+}
+
+.up-presets {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.up-presets button {
+  flex: 1;
+  padding: 5px 0;
+  font-size: 13px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+}
+
+.up-presets button[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--panel);
+  border-color: var(--ink);
+}
+
+.upgrade input[type="range"] {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.up-value {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.up-power {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 34px;
+  font-weight: 600;
+  font-family: var(--mono);
+}
+
+.up-power span {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.up-bar {
+  display: flex;
+  height: 12px;
+  margin-top: 10px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--line);
+}
+
+.up-bar-used {
+  flex: 0 1 0;
+  background: var(--water);
+}
+
+.up-bar-spill {
+  flex: 0 1 0;
+  background: var(--spill);
+}
+
+.up-bar-legend {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.up-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 5px;
+  border-radius: 50%;
+}
+
+.up-dot-used {
+  background: var(--water);
+}
+
+.up-dot-spill {
+  background: var(--spill);
+}
+
+.up-explain {
+  margin-top: 10px;
+  color: var(--ink);
+}
+
+#up-chart {
+  width: 100%;
+  height: auto;
+}
+
+.ch-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.ch-label {
+  fill: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.ch-label-end {
+  text-anchor: end;
+}
+
+.ch-label-mid {
+  text-anchor: middle;
+}
+
+.ch-curve {
+  fill: none;
+  stroke: var(--water);
+  stroke-width: 2;
+}
+
+.ch-marker {
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.ch-dot {
+  fill: var(--accent);
 }
 
 .readout {
