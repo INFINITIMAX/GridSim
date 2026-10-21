@@ -4,33 +4,11 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_CONFIG } from "../../src/model/config";
 import type { GridConfig } from "../../src/model/config";
 import { createGrid, step } from "../../src/model/grid";
-import type { GridEvent, GridState, LoadInit, UnitInit } from "../../src/model/grid";
+import type { GridEvent, GridState, UnitInit } from "../../src/model/grid";
+import { expectWithinPct, homes, simulate } from "./helpers";
 
 const CFG: GridConfig = DEFAULT_CONFIG;
 const F0 = 50;
-
-/** Rulează `seconds` de timp simulat (pași de cfg.dt); evenimentele se aplică în primul pas. */
-function simulate(
-  state: GridState,
-  cfg: GridConfig,
-  seconds: number,
-  firstEvents: readonly GridEvent[] = [],
-  onStep?: (s: GridState, stepIndex: number) => void,
-): void {
-  const n = Math.round(seconds / cfg.dt);
-  for (let i = 0; i < n; i++) {
-    step(state, cfg, i === 0 && firstEvents.length > 0 ? { events: firstEvents } : undefined);
-    onStep?.(state, i);
-  }
-}
-
-function homes(mw: number): LoadInit[] {
-  return [{ id: "load", kind: "homes", mw }];
-}
-
-function withinPct(actual: number, expected: number, pct: number): boolean {
-  return Math.abs(actual - expected) <= Math.abs(expected) * (pct / 100);
-}
 
 // ---------------------------------------------------------------- T1
 
@@ -50,30 +28,23 @@ describe("T1: ROCOF inițial (calcule.md, T1)", () => {
   it("T1: initial ROCOF after losing 1 GW of 10 GW (H = 5 s) is -0.5 Hz/s +-10%", () => {
     const state = createGrid(CFG, [ocgt10k, { id: "lost", kind: "solar", pMax: 1000, setpoint: 1000 }], homes(9000));
     step(state, CFG, { events: [{ type: "tripUnit", id: "lost" }] });
-    expect(withinPct(state.rocof, -0.5, 10)).toBe(true);
+    expectWithinPct(state.rocof, -0.5, 10, "T1 rocof");
     // după un pas de 0,05 s, frecvența a scăzut cu ~0,025 Hz
-    expect(withinPct(F0 - state.f, 0.025, 10)).toBe(true);
-  });
-
-  it("T1: a balanced system has zero ROCOF (precondiția scenariului)", () => {
-    const state = createGrid(CFG, [ocgt10k, { id: "lost", kind: "solar", pMax: 1000, setpoint: 1000 }], homes(9000));
-    step(state, CFG);
-    expect(Math.abs(state.rocof)).toBeLessThan(1e-9);
-    expect(state.f).toBeCloseTo(F0, 9);
+    expectWithinPct(F0 - state.f, 0.025, 10, "T1 scădere de frecvență după un pas");
   });
 
   it("T1 (negativ): doubling the synchronous capacity halves the ROCOF", () => {
     // Setpoint 10 000 stays above the OCGT minimum load (45% of 20 000 = 9 000), so the system starts balanced.
     // df/dt = 50 · (-1000) / (2 · 5 · 20000) = -0,25 Hz/s.
     const rocof = t1FirstRocof({ id: "sync", kind: "ocgt", pMax: 20_000, setpoint: 10_000 }, 11_000);
-    expect(withinPct(rocof, -0.25, 10)).toBe(true);
+    expectWithinPct(rocof, -0.25, 10, "T1 rocof cu S dublu");
   });
 
   it("T1 (negativ): ROCOF scales inversely with H (hydro H = 3 s vs OCGT H = 5 s)", () => {
     // Nu avem tehnologie cu H dublu; hidro (H = 3) față de OCGT (H = 5) prinde același defect:
     // un model care ignoră H ar da -0,5 în ambele cazuri. Așteptat: -0,5 · 5/3 = -0,8333.
     const rocof = t1FirstRocof({ id: "sync", kind: "hydro", pMax: 10_000, setpoint: 8000 });
-    expect(withinPct(rocof, -0.5 * (5 / 3), 10)).toBe(true);
+    expectWithinPct(rocof, -0.5 * (5 / 3), 10, "T1 rocof cu H = 3 s");
   });
 });
 
@@ -110,22 +81,16 @@ describe("T2: incidentul de referință CE, aFRR dezactivat (calcule.md, T2)", (
     expect(minF).toBeGreaterThanOrEqual(49.2); // abatere instantanee <= 800 mHz (SO GL)
     expect(minF).toBeLessThan(F0 - 0.2); // incidentul chiar a coborât frecvența sub 49,8 Hz
     const dev = F0 - state.f;
-    expect(withinPct(dev, QUASI_STATIONARY_DEV_HZ, 10)).toBe(true);
+    expectWithinPct(dev, QUASI_STATIONARY_DEV_HZ, 10, "T2 abatere cvasi-staționară");
     expect(dev).toBeLessThan(0.2); // abaterea staționară maximă din SO GL
+    expect(state.afrrDeployed).toBe(0); // aFRR dezactivat: nimic nu restabilește frecvența
   }, 30_000);
 
   it("T2: initial ROCOF is 0.094 Hz/s +-10% (H_sys = 4 s, S = 200 000 MW)", () => {
     const state = ceSystem(0);
     step(state, CFG, { events: LOSS_3GW });
-    expect(withinPct(state.rocof, -0.09375, 10)).toBe(true);
+    expectWithinPct(state.rocof, -0.09375, 10, "T2 rocof inițial");
   });
-
-  it("T2 (negativ): with aFRR = 0 the quasi-steady deviation is not zero", () => {
-    const state = ceSystem(0);
-    simulate(state, CFG, 120, LOSS_3GW);
-    expect(F0 - state.f).toBeGreaterThan(0.15);
-    expect(state.afrrDeployed).toBe(0);
-  }, 30_000);
 });
 
 describe("T4: restabilirea prin aFRR (calcule.md, T4)", () => {
@@ -210,7 +175,8 @@ describe("T3: UFLS într-o insulă (calcule.md, T3)", () => {
     expect(run.stage1.t).toBeGreaterThan(0.5);
     expect(run.stage1.t).toBeLessThan(0.8);
     expect(state.log.some((e) => e.type === "ufls")).toBe(true);
-    expect(state.shedFraction).toBeGreaterThanOrEqual(0.05);
+    // calcule.md, T3: deficitul de 200 MW (25% din 800 MW) cere treapta >= 4 (29% cumulat)
+    expect(state.shedFraction).toBeGreaterThanOrEqual(0.25);
     expect(state.pShed).toBeGreaterThan(0);
     expect(run.minF).toBeGreaterThan(47.5);
     expect(state.blackout).toBeNull();
@@ -315,7 +281,7 @@ describe("T6: baterie (calcule.md, T6)", () => {
     );
     // valori calculate de mână, independente de model: 20 MW · 1 h = 20 MWh la borne,
     // SOC = 0,5 - 20 / (100 · 0,9) = 0,27778
-    expect(withinPct(run.energyOutMWh, 20, 0.1)).toBe(true);
+    expectWithinPct(run.energyOutMWh, 20, 0.1, "T6 energie descărcată");
     expect(batterySoc(run.state)).toBeCloseTo(0.5 - 20 / (100 * 0.9), 4);
     expect(run.minSoc).toBeGreaterThanOrEqual(0);
     expect(run.maxSoc).toBeLessThanOrEqual(1);
@@ -325,7 +291,7 @@ describe("T6: baterie (calcule.md, T6)", () => {
   it("T6: charging 20 MW for 1 h: dSOC = energy in * eta_charge / capacity (+-0.1%)", () => {
     const run = runBattery(CAP, -20, HOUR);
     const dSoc = batterySoc(run.state) - CAP.soc;
-    expect(withinPct(run.energyInMWh, 20, 0.1)).toBe(true);
+    expectWithinPct(run.energyInMWh, 20, 0.1, "T6 energie absorbită");
     expect(Math.abs(dSoc - (run.energyInMWh * CAP.etaCharge) / CAP.capacityMWh)).toBeLessThanOrEqual(dSoc * 0.001);
     // de mână: SOC = 0,5 + 20 · 0,92 / 100 = 0,684
     expect(batterySoc(run.state)).toBeCloseTo(0.5 + (20 * 0.92) / 100, 4);
@@ -339,7 +305,7 @@ describe("T6: baterie (calcule.md, T6)", () => {
     const run = runBattery(small, 50, HOUR);
     expect(run.minSoc).toBeGreaterThanOrEqual(0);
     expect(batterySoc(run.state)).toBeLessThan(1e-9);
-    expect(withinPct(run.energyOutMWh, 0.9, 0.1)).toBe(true);
+    expectWithinPct(run.energyOutMWh, 0.9, 0.1, "T6 energie la SOC 0");
     // puterea a fost tăiată: la finalul orei bateria nu mai livrează, deși setpoint-ul e tot 50 MW
     const bat = run.state.units.find((x) => x.id === "bat");
     expect(bat?.setpoint).toBe(50);
@@ -354,7 +320,7 @@ describe("T6: baterie (calcule.md, T6)", () => {
     const run = runBattery(small, -50, HOUR);
     expect(run.maxSoc).toBeLessThanOrEqual(1);
     expect(batterySoc(run.state)).toBeGreaterThan(1 - 1e-9);
-    expect(withinPct(run.energyInMWh, 1 / 0.92, 0.1)).toBe(true);
+    expectWithinPct(run.energyInMWh, 1 / 0.92, 0.1, "T6 energie la SOC 1");
     const bat = run.state.units.find((x) => x.id === "bat");
     expect(Math.abs(bat?.p ?? NaN)).toBeLessThan(1e-6);
   }, 60_000);

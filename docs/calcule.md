@@ -47,6 +47,10 @@ Interpolare liniară între pornire și final, în limitele NC ER.
 | Eolian | 0 [G] | urmează vântul | 0 | — | 11 [F] |
 | Baterie | 0 [G] (fără inerție proprie; răspuns rapid prin invertor) | presupunere de joc: 100% în 1 s (FFR) [G] | 0 | — | n/a (nu emite în funcționare) |
 
+**Răspunsul rapid al bateriilor (FFR):** serviciul *Dynamic Containment* al NESO (GB) cere livrare completă în 1 s (nu mai repede de 0,5 s), activare de la ±0,2 Hz și livrare completă la ±0,5 Hz [J]. În joc: o baterie cu rezervă FCR are timpul de activare completă de **1 s**, în loc de cei 30 s ai FCR-ului clasic.
+
+**Parametri pentru o rețea mică (nivelul de insulă):** SO GL, Anexa V, coloana GB, sistem sincron mic: activare completă FCR în **10 s**, la **±500 mHz**; abaterea staționară maximă 500 mHz (Anexa III). Îi folosim pentru insula din joc, în locul celor pentru Europa continentală, fiindcă un sistem mic are nevoie de rezerve mai rapide.
+
 **Autoreglajul sarcinii D:** valorile de planificare sunt 1–2 %/Hz [I]. Folosim **1 %/Hz**, varianta conservatoare: amortizare mai mică înseamnă excursii de frecvență mai mari.
 
 Cifrele marcate „presupunere de joc” nu au o sursă primară bună. Sunt alese ca să fie plauzibile și apar ca atare în ecranul „How real is this?”.
@@ -105,6 +109,8 @@ Același scenariu, rulat de două ori, dă serii de frecvență identice bit cu 
 - **[G]** NREL (2020), *Inertia and the Power Grid: A Guide Without the Spin*, NREL/TP-6A20-73856 (invertoarele nu oferă inerție proprie; răspuns rapid de frecvență): https://www.nrel.gov/docs/fy20osti/73856.pdf
 - **[H]** arXiv 2409.08084, Tabelul I (PV: 90% în 20 s): https://arxiv.org/pdf/2409.08084
 - **[I]** Obererlacher (2022), TU Wien, *Identification of the self-regulating effect of load* (valori de planificare 1–2 %/Hz): https://repositum.tuwien.at/handle/20.500.12708/19704
+
+- **[J]** NESO, *Dynamic Containment* (servicii de răspuns în frecvență; livrare completă în 1 s): https://www.neso.energy/industry-information/balancing-services/frequency-response-services/dynamic-containment
 
 ## 5. Puncte slabe cunoscute
 - [D] (nuclear), [E] (hidro), [F] (CO₂) și D se sprijină pe surse secundare. Sunt suficiente pentru un joc educațional, dar trebuie reverificate înainte de lansarea publică.
