@@ -1,0 +1,30 @@
+// Color tokens for the scene. Defined once; scene code never uses raw hex values.
+// Cool, clean morning. ELECTRIC is the only strong accent and is reserved for
+// live conductors and lit windows.
+export const PALETTE = {
+  water: "#b7c9d6",
+  waterDeep: "#a3b9c9",
+  foam: "#f1f6f8",
+  sand: "#e6dcc3",
+  grass: "#a9b99a",
+  rock: "#bdb2a0",
+  wall: "#f4f5f3",
+  trim: "#dde2e3",
+  roofSlate: "#7d8ea3",
+  roofClay: "#b8806c",
+  roofSage: "#6f8a7a",
+  slab: "#8d9499",
+  metal: "#c9ced1",
+  steel: "#98a1a7",
+  dark: "#4b555e",
+  glassOff: "#6f8294",
+  insulator: "#eaf0f2",
+  trunk: "#8b7360",
+  leafLight: "#86a98a",
+  leafDark: "#6a9072",
+  sky: "#cfdde8",
+  hemiSky: "#e4eff7",
+  hemiGround: "#b8c4a8",
+  sun: "#fff6e6",
+  electric: "#f2a900",
+} as const;
