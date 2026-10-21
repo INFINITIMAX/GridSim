@@ -411,7 +411,7 @@ export function buildSpikeScene(scene: THREE.Scene): { update(dt: number): void 
   const water = new THREE.Mesh(new THREE.PlaneGeometry(WATER_SIZE, WATER_SIZE), waterMat);
   water.rotation.x = -Math.PI / 2;
   water.position.y = WATER_Y;
-  water.receiveShadow = true;
+  water.receiveShadow = false; // shadows on open water read as stray lines
   scene.add(water);
 
   const foamMat = new THREE.MeshBasicMaterial({ color: P.foam, transparent: true, opacity: 0.5, depthWrite: false });
@@ -449,7 +449,7 @@ export function buildSpikeScene(scene: THREE.Scene): { update(dt: number): void 
 
   // Wind turbine.
   const turbine = makeWindTurbine();
-  turbine.group.position.set(5.2, GROUND_Y, 3.2);
+  turbine.group.position.set(-2.5, GROUND_Y, -5);
   turbine.group.rotation.y = 0.5;
   scene.add(turbine.group);
 

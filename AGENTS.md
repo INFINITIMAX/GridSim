@@ -20,3 +20,4 @@ Simulator 3D al rețelei electrice (Vite + TypeScript strict + three.js). Docume
 
 ## Greșeli de evitat
 - npm 12 blochează scripturile de instalare (de ex. postinstall-ul esbuild). Vite merge fără el, prin pachetul binar opțional `@esbuild/win32-x64`.
+- PowerShell 5.1 `Set-Content -Encoding utf8` adaugă BOM, iar LICENSE și alte fișiere verificate strict pică. Editează cu Write/Edit sau din bash.

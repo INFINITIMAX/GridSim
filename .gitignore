@@ -8,3 +8,4 @@ playwright-report/
 .unlazy-hook-state.json
 .claude/settings.local.json
 *.log
+shots/

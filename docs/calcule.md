@@ -65,10 +65,11 @@ Sarcină 150 000 MW, FCR alocat 3 000 MW (complet la 200 mHz), D = 1 %/Hz, H_sys
 
 - Rigiditatea FCR: K = 3 000 MW / 0,2 Hz = 15 000 MW/Hz.
 - Autoreglajul sarcinii: D·P = 0,01 · 150 000 = 1 500 MW/Hz.
-- Abaterea cvasi-staționară: Δf = ΔP / (K + D·P) = 3 000 / 16 500 = **0,182 Hz (182 mHz)**, sub limita de 200 mHz din SO GL.
+- Abaterea cvasi-staționară, fără bandă moartă: Δf = ΔP / (K + D·P) = 3 000 / 16 500 = 0,182 Hz.
+- Cu banda moartă FCR de 10 mHz (SO GL, Anexa V), FCR livrează K·(Δf − 0,01). Deci 3 000 = 15 000·(Δf − 0,01) + 1 500·Δf, de unde Δf = 3 150 / 16 500 = **0,191 Hz (191 mHz)**, sub limita de 200 mHz din SO GL. Corecție 21-10-2026, semnalată de coder în P2.
 - ROCOF inițial: 50 · 3 000 / (2 · 4 · 200 000) = 0,094 Hz/s.
 
-Criterii: abaterea cvasi-staționară 182 mHz ±10%; nadirul ≤ 800 mHz (abaterea instantanee maximă din SO GL).
+Criterii: abaterea cvasi-staționară 191 mHz ±10% (cu aFRR dezactivat, ca să nu restabilească frecvența); nadirul ≤ 800 mHz (abaterea instantanee maximă din SO GL).
 
 ### T3: UFLS într-o rețea mică (insulă)
 Sarcină 800 MW, generare sincronă 1 000 MW cu H = 4 s, FCR 50 MW. Pierdere bruscă de 250 MW.
