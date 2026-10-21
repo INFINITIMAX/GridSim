@@ -14,8 +14,8 @@ Index de stare. Detalii: `docs/plan.md`; predări: `docs/handoff/`.
 | P4a | Extensii model: FFR baterii, preset insulă, prioritate FCR, setSetpoint limitat | coder → tester → reviewer | gata: 65/65, reviewer ACCEPTAT (bug ciclu limită găsit de tester și reparat) |
 | P3 | Date ENTSO-E | planner + coder | **blocat: Lucian își face cont gratuit ENTSO-E** (Energy-Charts interzice redistribuirea) |
 | P4 | Nivelul 1 + sandbox | coder → tester → reviewer | coder gata (+ Retur 1: echilibrare la start; 107 combinații verificate); **tester în lucru** |
-| P5 | Scena 3D | coder → tester → reviewer | de făcut |
-| P6 | UI | coder → tester → reviewer | de făcut |
+| P5 | Scena 3D | coder → tester → reviewer | **coder în lucru** |
+| P6 | UI + main.ts | coder → tester → reviewer | **coder în lucru** (Geist + Phosphor instalate) |
 | P7 | Verificare e2e | planner + tester | de făcut |
 | P8 | Review + gate-uri manuale | planner + Lucian | de făcut |
 | P9 | Deploy (GitHub public + Vercel) | planner, după aprobare | de făcut |
