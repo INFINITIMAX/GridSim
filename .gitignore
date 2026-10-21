@@ -9,3 +9,4 @@ playwright-report/
 .claude/settings.local.json
 *.log
 shots/
+data/refs/
