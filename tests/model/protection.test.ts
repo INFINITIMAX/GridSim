@@ -6,7 +6,7 @@ import { DEFAULT_CONFIG } from "../../src/model/config";
 import type { GridConfig } from "../../src/model/config";
 import { createGrid, step } from "../../src/model/grid";
 import type { GridEvent, GridState, UnitInit } from "../../src/model/grid";
-import { expectWithinPct, getUnit, homes, simulate } from "./helpers";
+import { ceSystem, expectWithinPct, getUnit, homes, island, simulate } from "./helpers";
 
 const CFG: GridConfig = DEFAULT_CONFIG;
 const F0 = 50;
@@ -23,11 +23,6 @@ function lossGrid(): GridState {
   );
 }
 
-/** Rulează până la blackout (sau cel mult `maxSeconds`). */
-function runUntilBlackout(state: GridState, maxSeconds: number, events: readonly GridEvent[]): void {
-  simulate(state, CFG, maxSeconds, events);
-}
-
 // ---------------------------------------------------------------- P1, P2, P3, P4
 
 describe("P1-P4: blackout-uri", () => {
@@ -38,7 +33,7 @@ describe("P1-P4: blackout-uri", () => {
     // cu autoreglajul 1 %/Hz) pentru orice f >= 47,5 Hz. Nimic nu îl acoperă (fără FCR/aFRR),
     // deci f scade monoton sub 47,5 Hz.
     const state = lossGrid();
-    runUntilBlackout(state, 60, [{ type: "tripUnit", id: "solar" }]);
+    simulate(state, CFG, 60, [{ type: "tripUnit", id: "solar" }]);
 
     expect(state.blackout).not.toBeNull();
     expect(state.blackout?.reason).toBe("under-frequency");
@@ -132,7 +127,7 @@ describe("P1-P4: blackout-uri", () => {
 
   it("P4: after a blackout, step changes nothing (not time, frequency, power, units, loads or log), even with events", () => {
     const state = lossGrid();
-    runUntilBlackout(state, 60, [{ type: "tripUnit", id: "solar" }]);
+    simulate(state, CFG, 60, [{ type: "tripUnit", id: "solar" }]);
     expect(state.blackout).not.toBeNull();
     const before = structuredClone(state);
 
@@ -274,22 +269,12 @@ describe("P6: rampa pe setSetpoint", () => {
 
 // ---------------------------------------------------------------- P7
 
-/** Insulă: hidro 500 MW (300) + OCGT 500 MW (250) + 250 MW solar, sarcină 800 MW, FCR 50 MW total. */
-function island(): GridState {
-  return createGrid(
-    CFG,
-    [
-      { id: "hydro", kind: "hydro", pMax: 500, setpoint: 300, fcrReserveMW: 25 },
-      { id: "ocgt", kind: "ocgt", pMax: 500, setpoint: 250, fcrReserveMW: 25 },
-      { id: "lost", kind: "solar", pMax: 250, setpoint: 250 },
-    ],
-    homes(800),
-  );
-}
+// P7 folosește insula din helpers.ts: hidro 500 MW (300) + OCGT 500 MW (250) + 250 MW solar,
+// sarcină 800 MW, FCR 50 MW total, adică island(50, 250).
 
 describe("P7: restoreShedLoad", () => {
   it("P7: after UFLS, restoreShedLoad resets shedFraction and stages and the consumption returns to the unshed value", () => {
-    const state = island();
+    const state = island(50, 250);
     simulate(state, CFG, 60, [{ type: "tripUnit", id: "lost" }]);
     expect(state.blackout).toBeNull();
     // precondiție (calcule.md, T3): deficit 25% -> cel puțin 25% deconectat = 200 MW din 800 MW
@@ -314,7 +299,7 @@ describe("P7: restoreShedLoad", () => {
   }, 30_000);
 
   it("P7 (negativ): without restoreShedLoad the shed load stays shed", () => {
-    const state = island();
+    const state = island(50, 250);
     simulate(state, CFG, 60, [{ type: "tripUnit", id: "lost" }]);
     const shed = state.shedFraction;
     expect(shed).toBeGreaterThan(0);
@@ -410,25 +395,12 @@ describe("P8: evenimente invalide", () => {
 
 // ---------------------------------------------------------------- P9, P10
 
-/** Ca ceSystem(0) din grid.test.ts: sarcină 150 000 MW, hidro + OCGT 100 000 MW fiecare cu FCR 1 500 MW, 3 000 MW solar. */
-function ceLike(): GridState {
-  return createGrid(
-    CFG,
-    [
-      { id: "hydro", kind: "hydro", pMax: 100_000, setpoint: 60_000, fcrReserveMW: 1500 },
-      { id: "ocgt", kind: "ocgt", pMax: 100_000, setpoint: 87_000, fcrReserveMW: 1500 },
-      { id: "lost", kind: "solar", pMax: 3000, setpoint: 3000 },
-    ],
-    homes(150_000),
-  );
-}
-
 describe("P9: unitate deconectată cu FCR activ", () => {
   it("P9: tripping a unit that delivers FCR removes its contribution from fcrDeployed immediately", () => {
     // Pierdere 3 000 MW: abaterea (calcul de mână, ecuația din reviewer) ≈ 0,75 Hz la 18,7 s, ≈ 0,58 Hz la 30 s,
     // apoi decădere cu tau = 2·H·S/f0/(D·L) = 2·4·200 000/50/1 500 = 21 s -> ≈ 0,46 Hz la 35 s. Peste 0,21 Hz FCR-ul
     // țintă e plin, iar rampa (1 500 MW / 30 s) l-a adus la 1 500 MW pe unitate înainte de 35 s.
-    const state = ceLike();
+    const state = ceSystem(0);
     simulate(state, CFG, 35, [{ type: "tripUnit", id: "lost" }]);
     expect(F0 - state.f).toBeGreaterThan(0.25); // precondiție: FCR cerut la maxim
     expectWithinPct(getUnit(state, "hydro").fcr, 1500, 1, "FCR hidro înainte de deconectare");
@@ -447,7 +419,7 @@ describe("P9: unitate deconectată cu FCR activ", () => {
   }, 30_000);
 
   it("P9: tripping an already tripped unit again does not log twice", () => {
-    const state = ceLike();
+    const state = ceSystem(0);
     step(state, CFG, { events: [{ type: "tripUnit", id: "lost" }] });
     step(state, CFG, { events: [{ type: "tripUnit", id: "lost" }] });
     expect(state.log.filter((e) => e.type === "unit-tripped")).toHaveLength(1);

@@ -1,4 +1,4 @@
-export { DEFAULT_CONFIG } from "./config";
+export { DEFAULT_CONFIG, ISLAND_CONFIG } from "./config";
 export type { AfrrConfig, GridConfig, UflsStage } from "./config";
 export { createGrid, step } from "./grid";
 export type {

@@ -29,6 +29,13 @@ export interface SourceSpec {
   co2PerKWh: number | null;
   /** URL exact din docs/calcule.md. */
   source: string;
+  /** URL-uri suplimentare din docs/calcule.md, pentru valori care nu vin din `source`. */
+  sources?: readonly string[];
+  /**
+   * Timpul de activare completă a FCR pentru această unitate, în secunde.
+   * Când lipsește, se folosește config.fcrFullTimeS.
+   */
+  fcrFullTimeS?: number;
   /** Text când valoarea e o presupunere de joc. */
   assumption?: string;
 }
@@ -129,7 +136,7 @@ export const CATALOG: Record<SourceKind, SourceSpec> = {
     assumption:
       "Urmează vântul: nu are limită proprie de viteză în model (60 Pmax/min = 100% într-o secundă).",
   },
-  // H [G]; viteză presupunere de joc (FFR)
+  // H [G]; viteză presupunere de joc; FFR (livrare completă în 1 s) [J]
   battery: {
     kind: "battery",
     label: "Baterie",
@@ -139,7 +146,11 @@ export const CATALOG: Record<SourceKind, SourceSpec> = {
     minLoad: 0,
     startMinutes: 0,
     co2PerKWh: null,
+    fcrFullTimeS: 1,
     source: "https://www.nrel.gov/docs/fy20osti/73856.pdf",
+    sources: [
+      "https://www.neso.energy/industry-information/balancing-services/frequency-response-services/dynamic-containment",
+    ],
     assumption: "Răspuns de 100% într-o secundă (60 Pmax/min) e o presupunere de joc.",
   },
 };

@@ -67,3 +67,14 @@ export const DEFAULT_CONFIG: GridConfig = {
   // Presupunere de joc (randament de ordinul 95% pe sens).
   batteryDefaultEta: 0.95,
 };
+
+/**
+ * Preset pentru nivelul de insulă (sistem sincron mic). SO GL, Anexa V, coloana GB:
+ * activare completă FCR în 10 s, la ±500 mHz (calcule.md, secțiunea 2, "Parametri pentru o rețea mică").
+ * Restul parametrilor rămân cei impliciți.
+ */
+export const ISLAND_CONFIG: GridConfig = {
+  ...DEFAULT_CONFIG,
+  fcrFullTimeS: 10,
+  fcrFullDeviationHz: 0.5,
+};

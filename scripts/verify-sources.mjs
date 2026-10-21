@@ -20,6 +20,9 @@ for (const kind of kinds) {
   if (!spec) { problems.push(`${kind}: missing from CATALOG`); continue; }
   if (!/^https:\/\/\S+$/.test(spec.source ?? "")) problems.push(`${kind}: source is not an https URL`);
   else if (!notes.includes(spec.source)) problems.push(`${kind}: ${spec.source} does not appear in docs/calcule.md`);
+  for (const extra of spec.sources ?? []) {
+    if (!notes.includes(extra)) problems.push(`${kind}: extra source ${extra} does not appear in docs/calcule.md`);
+  }
 }
 if (problems.length) fail(problems.join("\n"));
 console.log(`${kinds.length} generator types cite sources found in docs/calcule.md`);

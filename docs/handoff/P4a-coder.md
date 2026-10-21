@@ -23,3 +23,13 @@ Citește: `AGENTS.md`, `docs/calcule.md` (secțiunea 2, inclusiv FFR și insulă
 
 ## Ce NU ai voie să atingi
 `tests/**`, `src/scene/**`, `src/main.ts`, `src/ui/**`, `src/game/**`, `docs/**` (în afară de raportul tău), config, `GATES.md`, `TASKS.md`. Nu rulezi comenzi.
+
+## Retur 1 (planner, 21-10-2026): ciclu limită la semne opuse
+**Bug confirmat prin rulare:** testul X4b pică. Puterea minimă în 60–120 s e 992,67 MW, când maximul posibil e 1 000 MW. Ipoteza tester-ului (vezi `docs/handoff/P4a-tester-raport.md`, X4b): la tăiere, `afrr = p − pFcrOnly` resetează aFRR-ul negativ la 0; la pasul următor nu se mai taie nimic, aFRR reaccelerează spre −10, p scade, iar ciclul se repetă la ~7,5 s.
+
+**Regula decisă de planner:** la limitare se taie **doar componentele care împing spre limita depășită**:
+- la limita de sus, componentele pozitive;
+- la limita de jos, componentele negative;
+- ordinea: întâi aFRR, apoi FCR.
+
+O componentă care împinge în sens opus limitei nu se taie și nu se resetează niciodată. În X4b, rezultatul e aFRR = −10 (neatins), FCR = 30, p = 1 000 la fiecare pas, fără ciclu. Implementează regula, păstrează comportamentul X3 (semne egale: FCR 40, aFRR 10) și documentează în raport, în secțiunea „Retur 1”.

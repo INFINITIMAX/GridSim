@@ -5,7 +5,7 @@ import { DEFAULT_CONFIG } from "../../src/model/config";
 import type { GridConfig } from "../../src/model/config";
 import { createGrid, step } from "../../src/model/grid";
 import type { GridEvent, GridState, UnitInit } from "../../src/model/grid";
-import { expectWithinPct, homes, simulate } from "./helpers";
+import { ceSystem, expectWithinPct, homes, island, simulate } from "./helpers";
 
 const CFG: GridConfig = DEFAULT_CONFIG;
 const F0 = 50;
@@ -50,22 +50,7 @@ describe("T1: ROCOF inițial (calcule.md, T1)", () => {
 
 // ---------------------------------------------------------------- T2 / T4
 
-/**
- * Sistem tip CE: sarcină 150 000 MW, S = 200 000 MW, H_sys = 4 s (hidro H=3 + OCGT H=5, pMax egale),
- * FCR 3 000 MW (în total), + 3 000 MW solar (nesincron) care se pierde. Echilibru: 60 000 + 87 000 + 3 000.
- */
-function ceSystem(afrrPerUnitMW: number): GridState {
-  return createGrid(
-    CFG,
-    [
-      { id: "hydro", kind: "hydro", pMax: 100_000, setpoint: 60_000, fcrReserveMW: 1500, afrrReserveMW: afrrPerUnitMW },
-      { id: "ocgt", kind: "ocgt", pMax: 100_000, setpoint: 87_000, fcrReserveMW: 1500, afrrReserveMW: afrrPerUnitMW },
-      { id: "lost", kind: "solar", pMax: 3000, setpoint: 3000 },
-    ],
-    homes(150_000),
-  );
-}
-
+// ceSystem(afrrPerUnitMW): sistemul tip CE din helpers.ts (S = 200 000 MW, H_sys = 4 s, FCR 3 000 MW).
 const LOSS_3GW: readonly GridEvent[] = [{ type: "tripUnit", id: "lost" }];
 // calcule.md, T2: 3 150 / 16 500
 const QUASI_STATIONARY_DEV_HZ = 3150 / 16_500;
@@ -124,21 +109,7 @@ describe("T4: restabilirea prin aFRR (calcule.md, T4)", () => {
 
 // ---------------------------------------------------------------- T3
 
-/**
- * Insulă: sarcină 800 MW, 1 000 MW sincron (hidro 500 MW H=3 + OCGT 500 MW H=5 -> H = 4 s),
- * FCR total `fcrTotalMW`, plus `lossMW` solar (nesincron) care se pierde. Echilibru: 300 + (500 - loss) + loss.
- */
-function island(fcrTotalMW: number, lossMW: number): GridState {
-  return createGrid(
-    CFG,
-    [
-      { id: "hydro", kind: "hydro", pMax: 500, setpoint: 300, fcrReserveMW: fcrTotalMW / 2 },
-      { id: "ocgt", kind: "ocgt", pMax: 500, setpoint: 500 - lossMW, fcrReserveMW: fcrTotalMW / 2 },
-      { id: "lost", kind: "solar", pMax: lossMW, setpoint: lossMW },
-    ],
-    homes(800),
-  );
-}
+// island(fcrTotalMW, lossMW): insula din helpers.ts (sarcină 800 MW, 1 000 MW sincron, H = 4 s).
 
 interface IslandRun {
   state: GridState;

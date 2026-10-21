@@ -273,8 +273,16 @@ function applyEvent(state: GridState, config: GridConfig, ev: GridEvent): void {
     case "setSetpoint": {
       const u = findUnit(state, ev.id);
       if (u) {
-        const lo = u.kind === "battery" ? -u.pMax : 0;
-        u.setpoint = clamp(ev.mw, lo, u.pMax);
+        if (u.online) {
+          // Online: [minLoad·pMax, pMax]; solar și eolian au minLoad = 0; bateria [-pMax, pMax].
+          const lo = u.kind === "battery" ? -u.pMax : CATALOG[u.kind].minLoad * u.pMax;
+          u.setpoint = clamp(ev.mw, lo, u.pMax);
+          u.setpointRamped = clamp(u.setpointRamped, lo, u.pMax);
+        } else {
+          // Offline: setpoint-ul nu are efect; rămâne [0, pMax] (baterie [-pMax, pMax]).
+          const lo = u.kind === "battery" ? -u.pMax : 0;
+          u.setpoint = clamp(ev.mw, lo, u.pMax);
+        }
       }
       break;
     }
@@ -365,25 +373,33 @@ function updateUnit(u: UnitState, config: GridConfig, f: number): void {
       devEff = dev + config.fcrDeadbandHz;
     }
     const target = -clamp(devEff / config.fcrFullDeviationHz, -1, 1) * u.fcrReserveMW;
-    const maxFcrStep = (u.fcrReserveMW / config.fcrFullTimeS) * dt;
+    const maxFcrStep = (u.fcrReserveMW / (spec.fcrFullTimeS ?? config.fcrFullTimeS)) * dt;
     u.fcr += clamp(target - u.fcr, -maxFcrStep, maxFcrStep);
   } else {
     u.fcr = 0;
   }
 
   const b = u.battery;
-  let p = clampBySoc(b, clampUnitPower(u, u.setpointRamped + u.fcr + u.afrr), dt);
+  const raw = u.setpointRamped + u.fcr + u.afrr;
+  const p = clampBySoc(b, clampUnitPower(u, raw), dt);
 
-  // Contribuția efectivă la reglaj = p minus puterea fără reglaj (aceleași limite).
-  // Clamp-ul e 1-Lipschitz și monoton, deci livrat are semnul cererii și |livrat| <= |cerut|.
-  // Reducem fcr și afrr proporțional, ca valorile raportate să nu fie optimiste
-  // și ca FCR să nu se acumuleze dincolo de ce poate livra (fără windup).
-  const requested = u.fcr + u.afrr;
-  if (requested !== 0) {
-    const base = clampBySoc(b, clampUnitPower(u, u.setpointRamped), dt);
-    const k = clamp((p - base) / requested, 0, 1);
-    u.fcr *= k;
-    u.afrr *= k;
+  // Când puterea e limitată (pMax, minLoad, disponibilitate, SOC), se taie doar componentele care
+  // împing spre limita depășită: la limita de sus cele pozitive, la limita de jos cele negative.
+  // Ordinea: întâi aFRR, apoi FCR (FCR are prioritate). O componentă cu sens opus limitei nu se
+  // taie și nu se resetează (altfel apare un ciclu limită). Valorile raportate nu sunt optimiste,
+  // iar FCR nu se acumulează dincolo de ce poate livra (fără windup).
+  if (p < raw) {
+    let excess = raw - p;
+    const cutAfrr = Math.min(Math.max(u.afrr, 0), excess);
+    u.afrr -= cutAfrr;
+    excess -= cutAfrr;
+    u.fcr -= Math.min(Math.max(u.fcr, 0), excess);
+  } else if (p > raw) {
+    let excess = p - raw;
+    const cutAfrr = Math.min(Math.max(-u.afrr, 0), excess);
+    u.afrr += cutAfrr;
+    excess -= cutAfrr;
+    u.fcr += Math.min(Math.max(-u.fcr, 0), excess);
   }
 
   // Baterie: SOC rămâne în [0, 1]; la limită p s-a tăiat mai sus.
