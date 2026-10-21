@@ -49,6 +49,68 @@ describe("L4 (sandbox): reechilibrarea când o construcție intră online", () =
     expect(Math.abs(unitOf(snap, "hydro").p - 340)).toBeLessThan(5);
     expect(unitOf(snap, "gas").p).toBeGreaterThan(145);
   });
+
+  it("OCGT (+60 MW, pornire 8 min = 480 s) reduce hidroul cu 60 MW după intrarea online", () => {
+    // Calcul de mână: la intrare, programat = 420 (hidro) + 150 (gaz) + 60 (OCGT) = 630 MW, consum 570 MW,
+    // surplus 60 MW. Hidroul e primul în ordinea de tăiere și are loc (420 - 0,2·900 = 240 MW >= 60),
+    // deci noul setpoint al hidroului = 420 - 60 = 360 MW; gazul rămâne la 150. Rampa hidroului:
+    // 0,3·900/60 = 4,5 MW/s => 60 MW în ~13,3 s.
+    const s = createSession("sandbox");
+    accept(s.setSpeed(4));
+    accept(s.build("ocgt"));
+
+    advanceBy(s, 115, 1); // 460 s simulate: OCGT încă în așteptare
+    const before = s.snapshot();
+    expect(before.t).toBeCloseTo(460, 1);
+    expect(before.pendingBuilds).toHaveLength(1);
+    expect(before.pendingBuilds[0]?.kind).toBe("ocgt");
+    expect(before.units.some((u) => u.kind === "ocgt"), "OCGT nu e încă unitate").toBe(false);
+    expect(Math.abs(unitOf(before, "hydro").p - 420), "hidroul neatins până la intrare").toBeLessThan(5);
+
+    advanceBy(s, 6.25, 0.25); // 485 s: la ~5 s după intrare, hidroul încă coboară pe rampă
+    const ramping = s.snapshot();
+    expect(ramping.pendingBuilds).toEqual([]);
+    const hydroMid = unitOf(ramping, "hydro").p;
+    expect(hydroMid, "hidroul a început să scadă (rampă de 4,5 MW/s)").toBeLessThan(410);
+    // The OCGT enters at full setpoint, so the 60 MW surplus raises f and hydro FCR (100 MW, 10 s) also
+    // pulls output down, faster than the setpoint ramp alone: p can briefly undershoot 360. It stays well
+    // above 420 - 60 - 100 = 260 (setpoint target minus the full FCR reserve).
+    expect(hydroMid, "nu scade sub ținta minus toată rezerva FCR").toBeGreaterThan(260);
+    expect(ramping.blackout).toBeNull();
+
+    advanceBy(s, 25, 1); // 585 s: stabilizat
+    const after = s.snapshot();
+    const ocgt = after.units.find((u) => u.kind === "ocgt");
+    expect(ocgt?.online).toBe(true);
+    expect(Math.abs((ocgt?.p ?? 0) - 60)).toBeLessThan(5);
+    expect(Math.abs(unitOf(after, "hydro").p - 360)).toBeLessThan(5);
+    expect(Math.abs(unitOf(after, "gas").p - 150)).toBeLessThan(5);
+    expect(after.blackout).toBeNull();
+    expect(Math.abs(after.f - 50)).toBeLessThan(0.05);
+  });
+
+  it("demolish(\"hydro\") lasă 150 MW pentru 570 MW de consum: blackout sub-frecvență, sesiunea rămâne running", () => {
+    // Calcul de mână: rămâne doar gazul (150 MW, pMax 200, H = 4,3 s): deficit 420 MW,
+    // RoCoF ≈ 50·(150-570)/(2·4,3·200) ≈ -12 Hz/s => sub 47,5 Hz în câteva zeci de pași.
+    const s = createSession("sandbox");
+    expect(s.snapshot().blackout, "precondiție").toBeNull();
+    accept(s.demolish("hydro"));
+    expect(s.snapshot().blackout, "demolish se aplică abia la pasul următor").toBeNull();
+
+    advanceBy(s, 10, 0.5);
+    const snap = s.snapshot();
+    expect(snap.blackout).not.toBeNull();
+    expect(snap.blackout?.reason).toBe("under-frequency");
+    expect(snap.state, "sandbox nu are stare lost").toBe("running");
+    expect(s.result()).toBeNull();
+    expect(snap.f).toBeLessThan(47.5 + 1e-6);
+    expect(snap.log.some((e) => e.type === "blackout")).toBe(true);
+
+    const frozenT = snap.t;
+    advanceBy(s, 5, 0.5);
+    expect(s.snapshot().t, "după blackout modelul nu mai avansează").toBeCloseTo(frozenT, 9);
+    expect(s.snapshot().state).toBe("running");
+  });
 });
 
 describe("L8: construcții cu timp de pornire", () => {

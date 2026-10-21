@@ -26,6 +26,8 @@ export type ActionResult = { ok: true } | { ok: false; reason: string };
 /** Plafon de pași pe apel de advance (20 s simulate la dt = 50 ms). */
 const MAX_STEPS_PER_ADVANCE = 400;
 const EPS = 1e-9;
+/** Câte intrări din jurnalul rețelei expune snapshot() (cele mai recente), ca să nu crească costul pe cadru. */
+export const SNAPSHOT_LOG_ENTRIES = 50;
 
 export interface NarrativeMessage {
   /** Timpul simulat al mesajului, secunde. */
@@ -41,7 +43,7 @@ export interface Measurements {
   /** Timpul simulat scurs din ziua de joc, secunde. */
   elapsedS: number;
   /** Numărul maxim de trepte UFLS declanșate simultan. */
-  uflsStages: number;
+  maxUflsStages: number;
 }
 
 export interface GameResult {
@@ -104,6 +106,7 @@ export interface Snapshot {
   readonly measurements: Readonly<Measurements>;
   /** Mesajele narative apărute de la ultimul snapshot() (apelul le consumă). */
   readonly newMessages: readonly NarrativeMessage[];
+  /** Ultimele SNAPSHOT_LOG_ENTRIES intrări din jurnalul rețelei, în ordine cronologică. */
   readonly log: readonly Readonly<GridLogEntry>[];
 }
 
@@ -115,6 +118,8 @@ export interface Session {
   addConsumer(kind: LoadKind): ActionResult;
   removeConsumer(id: string): ActionResult;
   restoreLoad(): ActionResult;
+  /** Declanșează unitatea (incident provocat); aplicat la pasul următor. */
+  tripUnit(id: string): ActionResult;
   setSpeed(speed: Speed): ActionResult;
   /** Rezultatul final; null cât timp jocul nu s-a terminat (și mereu în sandbox). */
   result(): GameResult | null;
@@ -235,7 +240,7 @@ export function createSession(mode: GameMode): Session {
   let grid = makeGrid();
   let nadirHz = grid.f;
   let maxShedFraction = 0;
-  let uflsStages = 0;
+  let maxUflsStages = 0;
 
   function remainingBudget(): number {
     return level.budget - spent;
@@ -300,7 +305,7 @@ export function createSession(mode: GameMode): Session {
 
     nadirHz = Math.min(nadirHz, grid.f);
     maxShedFraction = Math.max(maxShedFraction, grid.shedFraction);
-    uflsStages = Math.max(uflsStages, grid.uflsTripped.filter(Boolean).length);
+    maxUflsStages = Math.max(maxUflsStages,grid.uflsTripped.filter(Boolean).length);
 
     if (isLevel) {
       if (grid.blackout) {
@@ -442,6 +447,21 @@ export function createSession(mode: GameMode): Session {
     return { ok: true };
   }
 
+  function tripUnit(id: string): ActionResult {
+    if (state !== "running") {
+      return refuse("Units can only be tripped while the day is running.");
+    }
+    const unit = grid.units.find((u) => u.id === id);
+    if (!unit) {
+      return refuse("There is no such unit.");
+    }
+    if (!unit.online) {
+      return refuse("That unit is already offline.");
+    }
+    queue.push({ type: "tripUnit", id });
+    return { ok: true };
+  }
+
   function setSpeed(next: Speed): ActionResult {
     if (isLevel) {
       return refuse("Speed can only be changed in sandbox mode.");
@@ -537,9 +557,9 @@ export function createSession(mode: GameMode): Session {
       })),
       budget: isLevel ? remainingBudget() : null,
       blackout: grid.blackout ? { ...grid.blackout } : null,
-      measurements: { nadirHz, maxShedFraction, elapsedS: grid.t, uflsStages },
+      measurements: { nadirHz, maxShedFraction, elapsedS: grid.t, maxUflsStages },
       newMessages: messages,
-      log: grid.log.map((e) => ({ ...e })),
+      log: grid.log.slice(-SNAPSHOT_LOG_ENTRIES).map((e) => ({ ...e })),
     };
   }
 
@@ -551,6 +571,7 @@ export function createSession(mode: GameMode): Session {
     addConsumer,
     removeConsumer,
     restoreLoad,
+    tripUnit,
     setSpeed,
     result,
     snapshot,

@@ -101,14 +101,6 @@ describe("L2: stelele (nimic -> 1, o baterie -> 2, două baterii -> 3)", () => {
     expect(r.stars).toBe(1);
     expect(r.maxShedFraction).toBeGreaterThan(0.05);
   });
-
-  it("stelele cresc cu numărul de baterii", () => {
-    const stars = [0, 1, 2].map((n) => {
-      const builds: BuildKind[] = Array.from({ length: n }, () => "battery");
-      return playToEnd(startedLevel(builds)).stars;
-    });
-    expect(stars).toEqual([1, 2, 3]);
-  });
 });
 
 describe("L3: bugetul", () => {

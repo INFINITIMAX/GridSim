@@ -1,4 +1,4 @@
-export { BUILDS, CONSUMER_KINDS } from "./builds";
+export { BUILDS, CONSUMER_KINDS, buildStartSeconds } from "./builds";
 export type { BuildKind, BuildSpec } from "./builds";
 export { LEVEL1 } from "./level1";
 export type { LevelData, ScriptAction, ScriptedEvent, StarRules } from "./level1";
