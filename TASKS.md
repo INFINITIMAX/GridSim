@@ -11,9 +11,9 @@ Index de stare. Detalii: `docs/plan.md`; predări: `docs/handoff/`.
 | P1b | Spike vizual | coder → planner | gata, aprobat de Lucian 21-10-2026 |
 | P2 | Model fizic (cornerstone) | coder → tester → reviewer | gata: 20/20 teste, reviewer ACCEPTAT |
 | P2b | Teste protecții + corecturi neblocante | coder → tester → reviewer | gata: 41/41 teste, reviewer ACCEPTAT |
-| P4a | Extensii model: FFR baterii, preset insulă, prioritate FCR, setSetpoint limitat | coder → tester → reviewer | **coder în lucru** |
+| P4a | Extensii model: FFR baterii, preset insulă, prioritate FCR, setSetpoint limitat | coder → tester → reviewer | gata: 65/65, reviewer ACCEPTAT (bug ciclu limită găsit de tester și reparat) |
 | P3 | Date ENTSO-E | planner + coder | **blocat: Lucian își face cont gratuit ENTSO-E** (Energy-Charts interzice redistribuirea) |
-| P4 | Nivelul 1 + sandbox | coder → tester → reviewer | de făcut |
+| P4 | Nivelul 1 + sandbox | coder → tester → reviewer | coder gata (+ Retur 1: echilibrare la start; 107 combinații verificate); **tester în lucru** |
 | P5 | Scena 3D | coder → tester → reviewer | de făcut |
 | P6 | UI | coder → tester → reviewer | de făcut |
 | P7 | Verificare e2e | planner + tester | de făcut |
