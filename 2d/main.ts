@@ -1,7 +1,7 @@
-// GridSim 2D, step 2: a green work area, a flowing river, one hydro plant you can click, inspect and upgrade.
+// GridSim 2D, step 3: a green work area, a flowing river, one hydro plant you can click, inspect and upgrade in every way.
 // Everything is drawn in tile space (1 unit = 1 tile); the view only changes the transform.
 
-import { turbineById } from "./hydro";
+import { DAM_HEIGHTS, sizeById, stepClog, technologyById, type DamHeight, type PlantSetup, type Technology } from "./hydro";
 import { createPanel, type PanelState } from "./panel";
 
 // ---------- Everything you might want to change lives here ----------
@@ -18,6 +18,7 @@ const COLORS = {
   soilDark: "#6f5c45",
   water: "#5b93bf",
   pond: "#4f86b3",
+  flooded: "#79a6a0",
   streak: "#d9eef8",
   gridLine: "rgba(31, 42, 51, 0.12)",
   hover: "rgba(255, 255, 255, 0.35)",
@@ -30,6 +31,9 @@ const COLORS = {
   wallFront: "#efe9db",
   roof: "#6f7f8c",
   rotor: "#2b3640",
+  gate: "#3a444d",
+  rack: "#33404a",
+  debris: "#7a5a3a",
   shadow: "rgba(31, 42, 51, 0.18)",
 };
 
@@ -60,14 +64,30 @@ const HYDRO = {
   /** Where the dam sits; it snaps to the nearest point on the river. Keep it on a straight run. */
   at: { x: 15, y: 10 },
   damThickness: 0.6,
-  damHeight: 0.35,
+  /** Per entry of DAM_HEIGHTS (3, 5, 8 m): wall height in tiles, and how far the lake reaches upstream, in tiles. */
+  damLook: { height: [0.25, 0.35, 0.55], lake: [2, 4, 7] },
+  /** At this dam height the lake floods the grass beside the river, up to `margin` tiles from the bank. */
+  flood: { fromHeight: 8, margin: 1 },
   /** The powerhouse stands on this bank: 1 = left of the flow, -1 = right. */
   bank: 1,
   house: { length: 1.8, depth: 1.4, height: 1.0 },
+  /** Grass between the river and the powerhouse when there is no canal. */
+  houseGap: 0.4,
+  /** Diversion canal: width, length downstream from the dam, and the tailrace gap between house and river. */
+  canal: { width: 0.6, length: 3.5, tailraceWidth: 0.6, streaks: 8 },
+  /** Spillway gates on the crest: how many, size, height, and how high they lift while water spills. */
+  gates: { count: 3, width: 0.5, thickness: 0.4, height: 0.16, openLift: 0.22, spillAbove: 0.01 },
+  /** Fish ladder: pools on the bank opposite the powerhouse, stepping down the flow. */
+  ladder: { pools: 4, poolLength: 0.45, poolWidth: 0.5, startAfterDam: 0.15, gapFromRiver: 0.1, baseHeight: 0.08, stepHeight: 0.07, dashSpeed: 30 },
+  /** Intake rack: distance upstream of the dam, height above the water, debris dots at full clog, and the cleaner box. */
+  rack: { offset: 0.2, lift: 0.05, debrisMax: 14, cleanerSize: 0.25, cleanerHeight: 0.3, armLift: 0.15 },
   /** Rotor turns per second at full load; slower at part load. */
   maxTurnsPerSecond: 1.6,
   /** Opacity of rotors that are not running. */
   idleRotorAlpha: 0.4,
+  /** Francis: number of curved vanes. Crossflow: number of moving lines in the drum and its width relative to the rotor radius. */
+  francisVanes: 8,
+  crossflow: { lines: 4, width: 0.6 },
   /** Spill foam below the dam: length in tiles along the river, and opacity when everything spills. */
   foam: { length: 0.9, maxAlpha: 0.85 },
   /** Extra tiles around the plant that still count as pointing at it, and the gap of the hover outline. */
@@ -124,37 +144,143 @@ function nearestOnRiver(x: number, y: number): { dist: number; s: number } {
 
 // ---------- The map: one tile type per cell ----------
 
-type Tile = "grass" | "water";
-const tiles: Tile[][] = [];
+type Tile = "grass" | "water" | "flooded";
+const tileDist: number[][] = [];
 const tileAlong: number[][] = [];
 for (let row = 0; row < MAP.rows; row++) {
-  tiles.push([]);
+  tileDist.push([]);
   tileAlong.push([]);
   for (let col = 0; col < MAP.cols; col++) {
     const near = nearestOnRiver(col + 0.5, row + 0.5);
-    tiles[row]!.push(near.dist <= RIVER.width / 2 ? "water" : "grass");
+    tileDist[row]!.push(near.dist);
     tileAlong[row]!.push(near.s);
   }
 }
+/** Recalculated whenever the dam height changes. */
+const tiles: Tile[][] = Array.from({ length: MAP.rows }, () => new Array<Tile>(MAP.cols).fill("grass"));
 
 const damS = nearestOnRiver(HYDRO.at.x, HYDRO.at.y).s;
 const dam = riverAt(damS);
 
+/** Wall height and lake length for a dam of this height. */
+function damLook(height: DamHeight): { height: number; lake: number } {
+  const i = Math.max(DAM_HEIGHTS.indexOf(height), 0);
+  return { height: HYDRO.damLook.height[i]!, lake: HYDRO.damLook.lake[i]! };
+}
+
+/** The lake floods grass beside the river, upstream of the dam. It stops short of the powerhouse, which stands at the dam. */
+function isFlooded(row: number, col: number, damHeight: DamHeight): boolean {
+  if (damHeight < HYDRO.flood.fromHeight) return false;
+  const dist = tileDist[row]![col]!;
+  const s = tileAlong[row]![col]!;
+  return dist > RIVER.width / 2 && dist <= RIVER.width / 2 + HYDRO.flood.margin && s < damS - HYDRO.house.length / 2 && s > damS - damLook(damHeight).lake;
+}
+
+/** How many tiles of land a dam of this height floods. */
+function floodedTiles(damHeight: DamHeight): number {
+  let count = 0;
+  for (let row = 0; row < MAP.rows; row++) {
+    for (let col = 0; col < MAP.cols; col++) if (isFlooded(row, col, damHeight)) count++;
+  }
+  return count;
+}
+
+function rebuildTiles(damHeight: DamHeight): void {
+  for (let row = 0; row < MAP.rows; row++) {
+    for (let col = 0; col < MAP.cols; col++) {
+      tiles[row]![col] = tileDist[row]![col]! <= RIVER.width / 2 ? "water" : isFlooded(row, col, damHeight) ? "flooded" : "grass";
+    }
+  }
+}
+
 // Footprints of the plant, shared by drawing, hovering and clicking.
 const damFootprint = orientedRect(dam.p, dam.t, dam.n, HYDRO.damThickness, RIVER.width + 0.8);
-const houseOffset = HYDRO.bank * (RIVER.width / 2 + 0.4 + HYDRO.house.depth / 2);
-const houseCentre = { x: dam.p.x + dam.n.x * houseOffset, y: dam.p.y + dam.n.y * houseOffset };
-const houseFootprint = orientedRect(houseCentre, dam.t, dam.n, HYDRO.house.length, HYDRO.house.depth);
+
+/** A point `along` the flow and `across` towards the powerhouse bank, both measured from the dam centre. */
+function plantPoint(along: number, across: number): Vec {
+  return { x: dam.p.x + dam.t.x * along + dam.n.x * HYDRO.bank * across, y: dam.p.y + dam.t.y * along + dam.n.y * HYDRO.bank * across };
+}
+
+/** Rectangle between two `along` values and two `across` values. */
+function plantRect(along0: number, along1: number, across0: number, across1: number): Vec[] {
+  return orientedRect(plantPoint((along0 + along1) / 2, (across0 + across1) / 2), dam.t, dam.n, along1 - along0, across1 - across0);
+}
+
+interface Box {
+  c: Vec;
+  along: number;
+  across: number;
+}
+
+/** Everything that depends on whether the plant has a canal. */
+interface Site {
+  /** Where the powerhouse centre is along the river, from the dam. */
+  houseAlong: number;
+  houseFootprint: Vec[];
+  hitBoxes: Box[];
+  /** Flat water: canal intake, canal and tailrace. Empty without a canal. */
+  water: Vec[][];
+  /** Distance of the canal centre line from the river centre line. */
+  canalAcross: number;
+  /** The rack line, and the direction pointing upstream of it. */
+  rack: { a: Vec; b: Vec; out: Vec };
+  cleaner: { centre: Vec; footprint: Vec[] };
+}
+
+function buildSite(canal: boolean): Site {
+  const halfDam = HYDRO.damThickness / 2;
+  const riverHalf = RIVER.width / 2;
+  const { house } = HYDRO;
+  const gap = canal ? HYDRO.canal.tailraceWidth : HYDRO.houseGap;
+  const houseAcross = riverHalf + gap + house.depth / 2;
+  const houseAlong = canal ? HYDRO.canal.length + house.length / 2 : 0;
+  const houseCentre = plantPoint(houseAlong, houseAcross);
+
+  // The intake reaches from the river to the canal just upstream of the dam; the rack closes its mouth.
+  const intake = HYDRO.canal.width;
+  const water: Vec[][] = [];
+  if (canal) {
+    const halfCanal = HYDRO.canal.width / 2;
+    water.push(plantRect(-halfDam - intake, -halfDam, riverHalf - 0.05, houseAcross + halfCanal));
+    water.push(plantRect(-halfDam - intake, HYDRO.canal.length, houseAcross - halfCanal, houseAcross + halfCanal));
+    water.push(plantRect(houseAlong - house.length / 2, houseAlong + house.length / 2, riverHalf - 0.05, riverHalf + gap));
+  }
+
+  const rack = canal
+    ? { a: plantPoint(-halfDam - intake, riverHalf + 0.05), b: plantPoint(-halfDam, riverHalf + 0.05), out: { x: -dam.n.x * HYDRO.bank, y: -dam.n.y * HYDRO.bank } }
+    : { a: plantPoint(-halfDam - HYDRO.rack.offset, -riverHalf), b: plantPoint(-halfDam - HYDRO.rack.offset, riverHalf), out: { x: -dam.t.x, y: -dam.t.y } };
+  // The cleaner box sits just beyond the `a` end of the rack.
+  const rackLength = Math.hypot(rack.b.x - rack.a.x, rack.b.y - rack.a.y);
+  const back = HYDRO.rack.cleanerSize / 2 + 0.03;
+  const centre = { x: rack.a.x - ((rack.b.x - rack.a.x) / rackLength) * back, y: rack.a.y - ((rack.b.y - rack.a.y) / rackLength) * back };
+
+  return {
+    houseAlong,
+    houseFootprint: orientedRect(houseCentre, dam.t, dam.n, house.length, house.depth),
+    hitBoxes: [
+      { c: dam.p, along: HYDRO.damThickness, across: RIVER.width + 0.8 },
+      { c: houseCentre, along: house.length, across: house.depth },
+    ],
+    water,
+    canalAcross: houseAcross,
+    rack,
+    cleaner: { centre, footprint: orientedRect(centre, dam.t, dam.n, HYDRO.rack.cleanerSize, HYDRO.rack.cleanerSize) },
+  };
+}
+
+let site = buildSite(false);
+/** Wall height and lake length of the dam as currently built. */
+let damH: number = damLook(5).height;
+let lakeLength: number = damLook(5).lake;
 
 /** Is this tile-space point on the dam or the powerhouse (plus a small margin)? */
 function onPlant(p: Vec): boolean {
   const m = HYDRO.hitMargin;
-  const inside = (c: Vec, along: number, across: number): boolean => {
+  return site.hitBoxes.some(({ c, along, across }) => {
     const dx = p.x - c.x;
     const dy = p.y - c.y;
     return Math.abs(dx * dam.t.x + dy * dam.t.y) <= along / 2 + m && Math.abs(dx * dam.n.x + dy * dam.n.y) <= across / 2 + m;
-  };
-  return inside(dam.p, HYDRO.damThickness, RIVER.width + 0.8) || inside(houseCentre, HYDRO.house.length, HYDRO.house.depth);
+  });
 }
 
 /** Is this screen point on the plant? In iso the walls and roof stand above their footprint, so test a few heights too. */
@@ -171,6 +297,8 @@ let showGrid = false;
 
 // The plant, as the panel last configured it.
 let plant: PanelState;
+/** How blocked the intake rack is, 0 to 1. It creeps up every frame. */
+let clog = 0;
 const upgradeRoot = document.getElementById("upgrade")!;
 
 const canvas = document.getElementById("world") as HTMLCanvasElement;
@@ -247,8 +375,8 @@ function polygon(points: Vec[], fill: string): void {
   ctx.fill();
 }
 
-/** A box standing on the ground. `base` is its footprint in tile space, any rotation. */
-function prism(base: Vec[], height: number, top: string, side: string, front: string): void {
+/** A box standing on the ground, or floating `lift` tiles above it. `base` is its footprint in tile space, any rotation. */
+function prism(base: Vec[], height: number, top: string, side: string, front: string, lift = 0): void {
   useScreenTransform();
   if (view === "top") {
     polygon(base.map((p) => toScreen(p.x + 0.12, p.y + 0.12)), COLORS.shadow);
@@ -262,9 +390,12 @@ function prism(base: Vec[], height: number, top: string, side: string, front: st
   });
   faces.sort((p, q) => p.depth - q.depth);
   for (const f of faces) {
-    polygon([toScreen(f.a.x, f.a.y), toScreen(f.b.x, f.b.y), toScreen(f.b.x, f.b.y, height), toScreen(f.a.x, f.a.y, height)], f.eastish ? side : front);
+    polygon(
+      [toScreen(f.a.x, f.a.y, lift), toScreen(f.b.x, f.b.y, lift), toScreen(f.b.x, f.b.y, lift + height), toScreen(f.a.x, f.a.y, lift + height)],
+      f.eastish ? side : front,
+    );
   }
-  polygon(base.map((p) => toScreen(p.x, p.y, height)), top);
+  polygon(base.map((p) => toScreen(p.x, p.y, lift + height)), top);
 }
 
 /** Footprint of a rectangle centred on `c`, aligned with the river direction `t` / normal `n`. */
@@ -277,6 +408,17 @@ function orientedRect(c: Vec, t: Vec, n: Vec, alongT: number, alongN: number): V
     { x: c.x + t.x * ht + n.x * hn, y: c.y + t.y * ht + n.y * hn },
     { x: c.x - t.x * ht + n.x * hn, y: c.y - t.y * ht + n.y * hn },
   ];
+}
+
+/** Fill a flat shape lying on the ground, given in tile space. */
+function fillTile(points: Vec[], fill: string): void {
+  useTileTransform();
+  ctx.beginPath();
+  ctx.moveTo(points[0]!.x, points[0]!.y);
+  for (const q of points.slice(1)) ctx.lineTo(q.x, q.y);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
 }
 
 function drawGroundSlab(): void {
@@ -294,10 +436,11 @@ function drawTiles(): void {
     for (let col = 0; col < MAP.cols; col++) {
       const tile = tiles[row]![col]!;
       if (tile === "grass") ctx.fillStyle = (row + col) % 2 ? COLORS.grass : COLORS.grassAlt;
+      else if (tile === "flooded") ctx.fillStyle = COLORS.flooded;
       else {
-        // The dam backs the water up a little: calmer, deeper water just upstream.
+        // The dam backs the water up: calmer, deeper water just upstream, as far as the lake reaches.
         const s = tileAlong[row]![col]!;
-        ctx.fillStyle = s < damS && s > damS - 4 ? COLORS.pond : COLORS.water;
+        ctx.fillStyle = s < damS && s > damS - lakeLength ? COLORS.pond : COLORS.water;
       }
       // Slight overlap hides seams between tiles.
       ctx.fillRect(col, row, 1.01, 1.01);
@@ -325,15 +468,20 @@ const streaks = Array.from({ length: RIVER.streaks }, () => ({
   offset: (Math.random() - 0.5) * (RIVER.width - 0.6),
 }));
 
-/** Water is slow in the pond behind the dam and fast right after the turbine. */
+/** Water is slow in the lake behind the dam and fast right after the turbine. */
 function flowFactor(s: number): number {
-  if (s > damS - 4 && s < damS) return 0.45;
+  if (s > damS - lakeLength && s < damS) return 0.45;
   if (s >= damS && s < damS + 2.5) return 1.8;
   return 1;
 }
 
+/** How fast streaks move at the current river flow, as a multiple of `RIVER.flowSpeed`. */
+function speedScale(): number {
+  return Math.max(plant.riverFlow / RIVER.referenceFlow, RIVER.minSpeedFactor);
+}
+
 function drawStreaks(dt: number): void {
-  const speedScale = Math.max(plant.riverFlow / RIVER.referenceFlow, RIVER.minSpeedFactor);
+  const scale = speedScale();
   useTileTransform();
   ctx.save();
   ctx.beginPath();
@@ -346,7 +494,7 @@ function drawStreaks(dt: number): void {
   ctx.beginPath();
   for (const q of streaks) {
     const before = q.s;
-    q.s += RIVER.flowSpeed * speedScale * flowFactor(q.s) * dt;
+    q.s += RIVER.flowSpeed * scale * flowFactor(q.s) * dt;
     // Streaks do not pass through the dam wall; they pop out on the far side.
     if (before < damS - HYDRO.damThickness / 2 && q.s >= damS - HYDRO.damThickness / 2) q.s = damS + HYDRO.damThickness / 2;
     if (q.s > riverLength) q.s -= riverLength;
@@ -361,6 +509,36 @@ function drawStreaks(dt: number): void {
   ctx.restore();
 }
 
+/** Streaks inside the canal: `s` runs from 0 (intake) to 1 (powerhouse). */
+const canalStreaks = Array.from({ length: HYDRO.canal.streaks }, () => ({
+  s: Math.random(),
+  offset: (Math.random() - 0.5) * (HYDRO.canal.width - 0.3),
+}));
+
+/** Canal, intake and tailrace, with water streaks running through the canal. Nothing without a canal. */
+function drawCanal(dt: number): void {
+  if (!plant.setup.canal) return;
+  for (const piece of site.water) fillTile(piece, COLORS.water);
+
+  const streakLen = 0.3;
+  const length = HYDRO.canal.length;
+  ctx.strokeStyle = COLORS.streak;
+  ctx.lineCap = "round";
+  ctx.lineWidth = 0.08;
+  ctx.globalAlpha = 0.75;
+  ctx.beginPath();
+  for (const q of canalStreaks) {
+    q.s += (RIVER.flowSpeed * speedScale() * dt) / length;
+    if (q.s > 1) q.s -= 1;
+    const from = plantPoint(q.s * length, site.canalAcross + q.offset);
+    const to = plantPoint(Math.min(q.s * length + streakLen, length), site.canalAcross + q.offset);
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
 /** White foam right below the dam, only when water goes over it. More foam the larger the share spilled. */
 function drawSpill(): void {
   const { spilledFlow } = plant.op;
@@ -368,55 +546,179 @@ function drawSpill(): void {
   const { p, t, n } = dam;
   const d = (HYDRO.damThickness + HYDRO.foam.length) / 2;
   const foam = orientedRect({ x: p.x + t.x * d, y: p.y + t.y * d }, t, n, HYDRO.foam.length, RIVER.width);
-  useTileTransform();
   ctx.globalAlpha = HYDRO.foam.maxAlpha * Math.min(spilledFlow / plant.riverFlow, 1);
-  ctx.beginPath();
-  ctx.moveTo(foam[0]!.x, foam[0]!.y);
-  for (const q of foam.slice(1)) ctx.lineTo(q.x, q.y);
-  ctx.closePath();
-  ctx.fillStyle = COLORS.foam;
-  ctx.fill();
+  fillTile(foam, COLORS.foam);
   ctx.globalAlpha = 1;
+}
+
+/** Four small pools stepping down, on the bank opposite the powerhouse, with water dashes falling from pool to pool. */
+function drawFishLadder(now: number): void {
+  if (!plant.setup.fishLadder) return;
+  const { pools, poolLength, poolWidth, startAfterDam, gapFromRiver, baseHeight, stepHeight, dashSpeed } = HYDRO.ladder;
+  const near = RIVER.width / 2 + gapFromRiver;
+  const tops: { c: Vec; lift: number }[] = [];
+  for (let i = 0; i < pools; i++) {
+    const a0 = HYDRO.damThickness / 2 + startAfterDam + i * poolLength;
+    const height = baseHeight + (pools - 1 - i) * stepHeight;
+    // Negative `across`: the bank opposite the powerhouse.
+    prism(plantRect(a0, a0 + poolLength, -(near + poolWidth), -near), height, COLORS.pond, COLORS.concreteSide, COLORS.concreteFront);
+    tops.push({ c: plantPoint(a0 + poolLength / 2, -(near + poolWidth / 2)), lift: height });
+  }
+  useScreenTransform();
+  ctx.strokeStyle = COLORS.streak;
+  ctx.lineCap = "round";
+  ctx.lineWidth = Math.max(1.5, unit * 0.05);
+  ctx.setLineDash([unit * 0.1, unit * 0.12]);
+  ctx.lineDashOffset = -(now / 1000) * dashSpeed * (unit / 30);
+  ctx.beginPath();
+  for (let i = 0; i < tops.length - 1; i++) {
+    const from = toScreen(tops[i]!.c.x, tops[i]!.c.y, tops[i]!.lift);
+    const to = toScreen(tops[i + 1]!.c.x, tops[i + 1]!.c.y, tops[i + 1]!.lift);
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+/** Debris dots on the water in front of the rack. Fixed random spots; more of them show as the rack clogs. */
+const debris = Array.from({ length: HYDRO.rack.debrisMax }, () => ({ u: Math.random(), v: 0.04 + Math.random() * 0.18 }));
+
+function drawRack(): void {
+  const { a, b, out } = site.rack;
+  useScreenTransform();
+  ctx.lineCap = "round";
+  ctx.strokeStyle = COLORS.rack;
+  ctx.lineWidth = Math.max(2, unit * 0.05);
+  const pa = toScreen(a.x, a.y, HYDRO.rack.lift);
+  const pb = toScreen(b.x, b.y, HYDRO.rack.lift);
+  ctx.beginPath();
+  ctx.moveTo(pa.x, pa.y);
+  ctx.lineTo(pb.x, pb.y);
+  ctx.stroke();
+
+  ctx.fillStyle = COLORS.debris;
+  const shown = Math.round(clog * HYDRO.rack.debrisMax);
+  for (let i = 0; i < shown; i++) {
+    const d = debris[i]!;
+    const at = toScreen(a.x + (b.x - a.x) * d.u + out.x * d.v, a.y + (b.y - a.y) * d.u + out.y * d.v);
+    ctx.beginPath();
+    ctx.arc(at.x, at.y, Math.max(2, unit * 0.035), 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  if (!plant.setup.autoCleaner) return;
+  // A small box at the end of the rack, with an arm reaching across it.
+  prism(site.cleaner.footprint, HYDRO.rack.cleanerHeight, COLORS.concreteTop, COLORS.concreteSide, COLORS.concreteFront);
+  const from = toScreen(site.cleaner.centre.x, site.cleaner.centre.y, HYDRO.rack.cleanerHeight);
+  const to = toScreen((a.x + b.x) / 2, (a.y + b.y) / 2, HYDRO.rack.armLift);
+  ctx.beginPath();
+  ctx.moveTo(from.x, from.y);
+  ctx.lineTo(to.x, to.y);
+  ctx.stroke();
 }
 
 /** One angle per rotor slot; a rotor only turns while it is running. */
 const rotorAngles = new Array<number>(8).fill(0);
 
+/**
+ * One rotor of the given technology, centred on `c` and raised by `lift`. `w` is the direction the rotors are lined up in.
+ * The caller sets stroke and fill colours, line width and opacity.
+ */
+function drawRotor(kind: Technology["id"], c: Vec, lift: number, radius: number, angle: number, w: Vec): void {
+  const hub = toScreen(c.x, c.y, lift);
+  const at = (dx: number, dy: number): Vec => toScreen(c.x + dx, c.y + dy, lift);
+  ctx.beginPath();
+  if (kind === "kaplan") {
+    for (let b = 0; b < 4; b++) {
+      const a = angle + (b * Math.PI) / 2;
+      const tip = at(Math.cos(a) * radius, Math.sin(a) * radius);
+      ctx.moveTo(hub.x, hub.y);
+      ctx.lineTo(tip.x, tip.y);
+    }
+  } else if (kind === "francis") {
+    // A rim, and short vanes that curve as they run outwards.
+    const rim = 24;
+    for (let k = 0; k <= rim; k++) {
+      const p = at(Math.cos((k / rim) * Math.PI * 2) * radius, Math.sin((k / rim) * Math.PI * 2) * radius);
+      if (k === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    for (let v = 0; v < HYDRO.francisVanes; v++) {
+      const a0 = angle + (v * Math.PI * 2) / HYDRO.francisVanes;
+      for (let j = 0; j <= 3; j++) {
+        const r = radius * (0.2 + (0.8 * j) / 3);
+        const a = a0 + (0.8 * j) / 3;
+        const p = at(Math.cos(a) * r, Math.sin(a) * r);
+        if (j === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+    }
+  } else {
+    // A drum: its outline, and lines that slide across it as it turns.
+    const u = { x: -w.y, y: w.x };
+    const half = radius * HYDRO.crossflow.width;
+    const corner = (su: number, sw: number): Vec => at(u.x * radius * su + w.x * half * sw, u.y * radius * su + w.y * half * sw);
+    const first = corner(-1, -1);
+    ctx.moveTo(first.x, first.y);
+    for (const [su, sw] of [[1, -1], [1, 1], [-1, 1]] as const) {
+      const p = corner(su, sw);
+      ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    for (let k = 0; k < HYDRO.crossflow.lines; k++) {
+      const sw = (((angle / (Math.PI * 2)) % 1) + k / HYDRO.crossflow.lines) % 1;
+      const from = corner(-1, sw * 2 - 1);
+      const to = corner(1, sw * 2 - 1);
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
+    }
+  }
+  ctx.stroke();
+  if (kind !== "crossflow") {
+    ctx.beginPath();
+    ctx.arc(hub.x, hub.y, Math.max(2, unit * 0.06), 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 function drawHydro(dt: number): void {
-  const { p, n } = dam;
-  // Dam: a low concrete wall across the whole river, a little wider than the water.
-  prism(damFootprint, HYDRO.damHeight, COLORS.concreteTop, COLORS.concreteSide, COLORS.concreteFront);
-
-  // Powerhouse on the bank, next to the dam.
-  prism(houseFootprint, HYDRO.house.height, COLORS.roof, COLORS.wallSide, COLORS.wallFront);
-
-  // Rotors: one per turbine, spread evenly across the river along the dam.
   const { setup, op } = plant;
-  const radius = turbineById(setup.turbine).radius;
+  const riverHalf = RIVER.width / 2;
+  // Dam: a low concrete wall across the whole river, a little wider than the water.
+  prism(damFootprint, damH, COLORS.concreteTop, COLORS.concreteSide, COLORS.concreteFront);
+
+  // Spillway gates on the crest, lifted while water spills.
+  if (setup.gates) {
+    const { count, width, thickness, height, openLift, spillAbove } = HYDRO.gates;
+    const lift = damH + (op.spilledFlow > spillAbove ? openLift : 0);
+    for (let i = 0; i < count; i++) {
+      const across = -riverHalf + (RIVER.width * (i + 0.5)) / count;
+      prism(plantRect(-thickness / 2, thickness / 2, across - width / 2, across + width / 2), height, COLORS.gate, COLORS.rotor, COLORS.rotor, lift);
+    }
+  }
+
+  // Powerhouse on the bank, next to the dam, or at the end of the canal.
+  prism(site.houseFootprint, HYDRO.house.height, COLORS.roof, COLORS.wallSide, COLORS.wallFront);
+
+  // Rotors: one per turbine. On the dam crest, or in the tailrace when there is a canal.
+  const kind = technologyById(setup.technology).id;
+  const radius = sizeById(setup.size).radius;
   useScreenTransform();
   ctx.lineCap = "round";
+  ctx.lineJoin = "round";
   ctx.strokeStyle = COLORS.rotor;
   ctx.fillStyle = COLORS.rotor;
   ctx.lineWidth = Math.max(1.5, unit * 0.09);
   for (let i = 0; i < setup.count; i++) {
     const running = i < op.running;
     if (running) rotorAngles[i] = rotorAngles[i]! + HYDRO.maxTurnsPerSecond * op.load * Math.PI * 2 * dt;
-    const across = -RIVER.width / 2 + (RIVER.width * (i + 0.5)) / setup.count;
-    const cx = p.x + n.x * across;
-    const cy = p.y + n.y * across;
-    const hub = toScreen(cx, cy, HYDRO.damHeight);
+    const slot = (i + 0.5) / setup.count;
+    const spot = setup.canal
+      ? { c: plantPoint(site.houseAlong - HYDRO.house.length / 2 + HYDRO.house.length * slot, riverHalf + HYDRO.canal.tailraceWidth / 2), lift: 0, w: dam.t }
+      : { c: plantPoint(0, -riverHalf + RIVER.width * slot), lift: damH, w: dam.n };
     ctx.globalAlpha = running ? 1 : HYDRO.idleRotorAlpha;
-    ctx.beginPath();
-    for (let b = 0; b < 4; b++) {
-      const a = rotorAngles[i]! + (b * Math.PI) / 2;
-      const tip = toScreen(cx + Math.cos(a) * radius, cy + Math.sin(a) * radius, HYDRO.damHeight);
-      ctx.moveTo(hub.x, hub.y);
-      ctx.lineTo(tip.x, tip.y);
-    }
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(hub.x, hub.y, Math.max(2, unit * 0.06), 0, Math.PI * 2);
-    ctx.fill();
+    drawRotor(kind, spot.c, spot.lift, radius, rotorAngles[i]!, spot.w);
   }
   ctx.globalAlpha = 1;
 }
@@ -427,7 +729,7 @@ function drawPlantOutline(): void {
   ctx.strokeStyle = COLORS.plantOutline;
   ctx.lineWidth = 2 / unit;
   ctx.lineJoin = "round";
-  for (const footprint of [damFootprint, houseFootprint]) {
+  for (const footprint of [damFootprint, site.houseFootprint]) {
     // Grow the footprint outwards from its centre by the outline gap.
     const c = footprint.reduce((s, q) => ({ x: s.x + q.x / 4, y: s.y + q.y / 4 }), { x: 0, y: 0 });
     const grow = (q: Vec): Vec => {
@@ -523,15 +825,36 @@ function closePlant(): void {
   animateZoomTo(0);
 }
 
-const panel = createPanel(
-  upgradeRoot,
-  (state) => {
+/** Bring the map in line with the panel: lake and flooded land follow the dam, the powerhouse follows the canal. */
+let builtDam: DamHeight | null = null;
+let builtCanal: boolean | null = null;
+function applySetup(setup: PlantSetup): void {
+  if (setup.damHeight !== builtDam) {
+    builtDam = setup.damHeight;
+    damH = damLook(setup.damHeight).height;
+    lakeLength = damLook(setup.damHeight).lake;
+    rebuildTiles(setup.damHeight);
+  }
+  if (setup.canal !== builtCanal) {
+    builtCanal = setup.canal;
+    site = buildSite(setup.canal);
+  }
+}
+
+const panel = createPanel(upgradeRoot, {
+  onChange(state) {
     plant = state;
+    applySetup(state.setup);
     refreshHover();
   },
-  closePlant,
-);
+  onClose: closePlant,
+  onCleanNow() {
+    clog = 0;
+  },
+  floodedTiles,
+});
 plant = panel.state;
+applySetup(plant.setup);
 
 canvas.addEventListener("click", (e) => {
   const onIt = plantAtScreen(e.clientX, e.clientY);
@@ -561,14 +884,19 @@ let last = performance.now();
 function frame(now: number): void {
   const dt = Math.min((now - last) / 1000, 0.1);
   last = now;
+  clog = stepClog(clog, plant.riverFlow, plant.setup.autoCleaner, dt);
+  panel.setClog(clog);
   stepCamera(now);
   useScreenTransform();
   ctx.clearRect(0, 0, cssW, cssH);
   drawGroundSlab();
   drawTiles();
   drawStreaks(dt);
+  drawCanal(dt);
   drawHover();
   drawSpill();
+  drawFishLadder(now);
+  drawRack();
   drawHydro(dt);
   if (hoverOnPlant) drawPlantOutline();
   requestAnimationFrame(frame);

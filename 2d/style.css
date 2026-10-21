@@ -9,6 +9,9 @@
   --line: #c9d3da;
   --water: #5b93bf;
   --spill: #aeb9c1;
+  --eco: #6fae8a;
+  --clog: #8a6a45;
+  --warn: #a4412f;
   --accent: #2f6f9f;
   --panel-width: 340px;
   --font:"Geist Variable", system-ui, sans-serif;
@@ -186,13 +189,94 @@ canvas {
 }
 
 .up-option-eff {
-  grid-row: 2;
+  grid-row: 1;
   grid-column: 2;
 }
 
 .up-option-meta {
-  grid-row: 2;
+  grid-row: 3;
   grid-column: 1;
+}
+
+.up-option-desc {
+  grid-row: 2;
+  grid-column: 1 / -1;
+  font-size: 12px;
+}
+
+.up-option-reason {
+  grid-row: 4;
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--warn);
+}
+
+.up-option:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.upgrade [hidden] {
+  display: none;
+}
+
+.up-gap {
+  margin-top: 10px;
+}
+
+.up-sticky {
+  position: sticky;
+  top: -16px; /* the panel has 16px padding; stick flush to its edge so nothing scrolls above */
+  z-index: 1;
+  margin: 0 -16px;
+  padding: 12px 16px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.up-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 7px 10px;
+  margin-bottom: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+}
+
+.up-toggle[aria-pressed="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--panel);
+}
+
+.up-toggle-state {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.up-action {
+  padding: 6px 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+}
+
+.up-action:disabled {
+  color: var(--line);
+  cursor: default;
+}
+
+.up-warn {
+  padding: 8px 10px;
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  color: var(--warn);
+  font-weight: 600;
 }
 
 .up-stepper {
@@ -289,9 +373,20 @@ canvas {
   background: var(--spill);
 }
 
+.up-bar-eco {
+  flex: 0 1 0;
+  background: var(--eco);
+}
+
+.up-bar-clog {
+  flex: 0 1 0;
+  background: var(--clog);
+}
+
 .up-bar-legend {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
   margin-top: 6px;
   font-size: 12px;
   color: var(--muted);
@@ -311,6 +406,10 @@ canvas {
 
 .up-dot-spill {
   background: var(--spill);
+}
+
+.up-dot-eco {
+  background: var(--eco);
 }
 
 .up-explain {
@@ -356,6 +455,22 @@ canvas {
 
 .ch-dot {
   fill: var(--accent);
+}
+
+.ch-bar {
+  fill: var(--water);
+}
+
+#up-months {
+  width: 100%;
+  height: auto;
+  margin-top: 8px;
+}
+
+.up-presets small {
+  display: block;
+  font-size: 11px;
+  opacity: 0.7;
 }
 
 .readout {
