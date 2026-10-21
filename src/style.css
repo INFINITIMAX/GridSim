@@ -1,0 +1,2 @@
+html, body { margin: 0; height: 100%; overflow: hidden; background: #f3efe6; }
+#scene { display: block; width: 100vw; height: 100vh; }

@@ -1,5 +1,5 @@
 # Plan: GridSim, felia verticală
-Status: draft (21-10-2026). Surse: `docs/intent.md`, `docs/spec.md`. Criterii de acceptare: `GATES.md` (rădăcina repo-ului).
+Status: aprobat (21-10-2026). Surse: `docs/intent.md`, `docs/spec.md`. Criterii de acceptare: `GATES.md` (rădăcina repo-ului).
 
 ## Ordinea task-urilor
 
