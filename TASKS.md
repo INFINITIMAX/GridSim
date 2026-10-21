@@ -8,9 +8,10 @@ Index de stare. Detalii: `docs/plan.md`; predări: `docs/handoff/`.
 | — | plan.md + GATES.md | planner | aprobat 21-10-2026 |
 | P0 | Verificarea surselor → docs/calcule.md | planner | gata 21-10-2026 (4 surse secundare de reverificat înainte de lansare) |
 | P1 | Scaffold | planner | gata 21-10-2026 (build 118 KB gzip, vitest OK) |
-| P1b | Spike vizual | coder → planner | **urmează** |
-| P2 | Model fizic (cornerstone) | coder → tester → reviewer | de făcut |
-| P3 | Date ENTSO-E | planner + coder | de făcut |
+| P1b | Spike vizual | coder → planner | gata, aprobat de Lucian 21-10-2026 |
+| P2 | Model fizic (cornerstone) | coder → tester → reviewer | gata: 20/20 teste, reviewer ACCEPTAT |
+| P2b | Teste protecții + corecturi neblocante | coder → tester → reviewer | coder gata; **tester în lucru** |
+| P3 | Date ENTSO-E | planner + coder | **blocat: Lucian își face cont gratuit ENTSO-E** (Energy-Charts interzice redistribuirea) |
 | P4 | Nivelul 1 + sandbox | coder → tester → reviewer | de făcut |
 | P5 | Scena 3D | coder → tester → reviewer | de făcut |
 | P6 | UI | coder → tester → reviewer | de făcut |

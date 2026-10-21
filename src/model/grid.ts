@@ -162,7 +162,7 @@ function makeUnit(init: UnitInit, config: GridConfig): UnitState {
     battery,
   };
   if (online) {
-    unit.p = clampUnitPower(unit, setpoint);
+    unit.p = clampBySoc(battery, clampUnitPower(unit, setpoint), config.dt);
   }
   return unit;
 }
@@ -179,6 +179,16 @@ function clampUnitPower(u: UnitState, p: number): number {
     out = Math.min(out, Math.max(u.availability, 0));
   }
   return out;
+}
+
+/** Taie p după energia disponibilă în baterie (descărcare/încărcare într-un pas). Fără baterie, p rămâne neschimbat. */
+function clampBySoc(b: BatteryState | null, p: number, dt: number): number {
+  if (!b) {
+    return p;
+  }
+  const maxDischarge = (b.soc * b.capacityMWh * 3600 * b.etaDischarge) / dt;
+  const maxCharge = ((1 - b.soc) * b.capacityMWh * 3600) / (b.etaCharge * dt);
+  return clamp(p, -maxCharge, maxDischarge);
 }
 
 export function createGrid(config: GridConfig, units: UnitInit[], loads: LoadInit[]): GridState {
@@ -326,7 +336,9 @@ function updateAfrr(state: GridState, config: GridConfig, totalLoad: number): vo
   }
 
   // Anti-windup prin back-calculation: integratorul urmărește ce s-a livrat efectiv
-  // (saturarea rezervei sau limitarea de viteză a unităților).
+  // (saturarea rezervei, rampa unităților, limitele de putere/SOC). `delivered` e valoarea
+  // din pasul anterior, deja redusă la ce a livrat efectiv unitatea; decalajul de un pas
+  // e intenționat (măsurăm livrarea reală, nu ținta rampată) și inofensiv față de dt.
   state.afrrIntegralMW += (ki * totalLoad * e + (delivered - raw) / trackingTimeS) * dt;
 }
 
@@ -359,14 +371,23 @@ function updateUnit(u: UnitState, config: GridConfig, f: number): void {
     u.fcr = 0;
   }
 
-  let p = clampUnitPower(u, u.setpointRamped + u.fcr + u.afrr);
-
-  // Baterie: SOC rămâne în [0, 1]; la limită p se taie.
   const b = u.battery;
+  let p = clampBySoc(b, clampUnitPower(u, u.setpointRamped + u.fcr + u.afrr), dt);
+
+  // Contribuția efectivă la reglaj = p minus puterea fără reglaj (aceleași limite).
+  // Clamp-ul e 1-Lipschitz și monoton, deci livrat are semnul cererii și |livrat| <= |cerut|.
+  // Reducem fcr și afrr proporțional, ca valorile raportate să nu fie optimiste
+  // și ca FCR să nu se acumuleze dincolo de ce poate livra (fără windup).
+  const requested = u.fcr + u.afrr;
+  if (requested !== 0) {
+    const base = clampBySoc(b, clampUnitPower(u, u.setpointRamped), dt);
+    const k = clamp((p - base) / requested, 0, 1);
+    u.fcr *= k;
+    u.afrr *= k;
+  }
+
+  // Baterie: SOC rămâne în [0, 1]; la limită p s-a tăiat mai sus.
   if (b) {
-    const maxDischarge = (b.soc * b.capacityMWh * 3600 * b.etaDischarge) / dt;
-    const maxCharge = ((1 - b.soc) * b.capacityMWh * 3600) / (b.etaCharge * dt);
-    p = clamp(p, -maxCharge, maxDischarge);
     if (p >= 0) {
       b.soc -= (p * dt) / 3600 / (b.capacityMWh * b.etaDischarge);
     } else {
