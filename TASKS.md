@@ -33,3 +33,15 @@ Detalii: `docs/learn/pelton/plan.md`; criterii: `docs/learn/pelton/GATES.md`.
 | L-c | Teste tests/learn/ | tester | gata: 38/38, mutația g=10 prinsă |
 | L-d | Review | reviewer | ACCEPTAT, neblocantele 1–6 + 12 rezolvate |
 | L-e | Scripturi de verificare + gate-uri + capturi | planner | L0–L5 trec (L5 aprobat de Lucian 23-10-2026) |
+
+### Lecțiile 4–6 (din 23-10-2026)
+
+Criterii: `docs/learn/pelton/GATES-L4-6.md`; predări: `docs/handoff/L2-*`.
+
+| # | Task | Cine | Stare |
+|---|---|---|---|
+| L2-0 | Surse, conținut lectia-04..06, plan, gate-uri | planner | gata 23-10-2026 |
+| L2-a | Codul lecțiilor 4–6 (sim, scene, UI) | coder (+ cotele L4 mutate de planner) | gata 23-10-2026 |
+| L2-b | Testele (după specificație, în paralel cu coder-ul) | tester | gata: 94/94, 3 mutații prinse |
+| L2-c | Review | reviewer | ACCEPTAT 23-10-2026, doar neblocante |
+| L2-d | verify-learn-page extins la 1–6, rulare gate-uri, capturi | planner | M0–M5 trec; M6 = aprobarea lui Lucian |

@@ -61,3 +61,36 @@ learn/ui.ts             panou, tab-uri, callout-uri, simulatoare
 - **Diorama L1–L2 e cel mai mare model nou.** Riscul e să alunece spre „hartă”. Regula: un bloc de teren mic, citit ca obiect, la scara agregatului din frame.
 - **Afirmațiile marcate „de găsit”** (A1-pagină, A11, A12, B5, C8) nu au voie în UI până nu au a doua sursă. Gate-ul o verifică.
 - **Performanța:** conturul cu „inverted hull” dublează geometria. Țintă: < 40 ms pe cadru în Chrome headless; altfel se reduce numărul de segmente.
+
+---
+
+# Plan: lecțiile 4–6 (din 23-10-2026)
+
+Conținut: `lectia-04.md`, `lectia-05.md`, `lectia-06.md`. Surse noi: S7, S12–S18 în `surse.md`. Criterii: `GATES-L4-6.md`. Predări: `docs/handoff/L2-*`.
+
+## Fișiere noi sau schimbate (coder)
+
+```
+learn/sim/friction.ts   L4: V, Re, f (Swamee–Jain), hf (Darcy–Weisbach)
+learn/sim/hammer.ts     L5: c (ESHA 5.22), Tc = 2L/c, Joukowsky, Allievi plafonat la Joukowsky
+learn/sim/jet.ts        L6: v = Cv·√(2gH), Q = v·A·deschidere
+learn/scenes/penstock.ts  versantul cu conducta (L4, L5): cameră de încărcare, conductă, blocuri de ancoraj, vană, agregat, linia de energie, unda de presiune, manometrul
+learn/scenes/nozzle.ts    duza în secțiune (L6): corpul duzei, acul, jetul, deflectorul, cupele rotorului
+learn/lessons.ts        L4–L6; UNLOCKED = 6
+learn/ui.ts, learn/main.ts  trei simulatoare noi + legarea scenelor
+```
+
+Tester-ul: `tests/learn/friction.test.ts`, `hammer.test.ts`, `jet.test.ts`, plus `lessons.test.ts` extins la 6 lecții. Planner-ul: `scripts/verify-learn-page.mjs`.
+
+## Contractul DOM, extins
+
+- L4: `#sim input[name=flow|diameter|length]`, `#sim select[name=material]` cu valorile `pe|steel`; `#sim [data-out=velocity|f|loss|net|pct|warn]`.
+- L5: `#sim input[name=time|length]`, `#sim select[name=material]` cu valorile `steel|pvc`; `#sim [data-out=c|tc|surge|max|mode|warn]`; butonul `#sim [data-run]` pornește animația.
+- L6: `#sim input[name=head|opening]`, `#sim input[name=deflector]` (checkbox); `#sim [data-out=speed|flow|power|note]`, cu `note` vizibil doar cu deflectorul pus.
+- Restul contractului (lecțiile 1–3) rămâne neschimbat.
+
+## Riscuri
+
+- **Linia de energie la scara reală e invizibilă.** O pierdere de 1,6 % din 60 m nu se vede pe ecran. Scena o exagerează vizual (de ex. ×5), iar Specs o declară „not to scale”.
+- **Unda de presiune animată cu viteza reală durează 0,3 s,** prea repede ca să se vadă. Animația e încetinită și o etichetă spune „slowed down”.
+- **Reutilizarea.** Agregatul vine din `scenes/pelton.ts` (`makeUnit`, `makeNozzle`), nu se redesenează.

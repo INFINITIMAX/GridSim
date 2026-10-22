@@ -29,6 +29,9 @@ import stack from "@phosphor-icons/core/assets/regular/stack.svg?raw";
 import warning from "@phosphor-icons/core/assets/regular/warning.svg?raw";
 import waves from "@phosphor-icons/core/assets/regular/waves.svg?raw";
 import type { Fact, Lesson } from "./lessons";
+import { frictionLossM, GROSS_HEAD_M, pipeVelocityMs, reynolds, ROUGHNESS_MM, swameeJainF } from "./sim/friction";
+import { criticalTimeS, PIPES, surgeM, waveSpeedMs, type HammerParams } from "./sim/hammer";
+import { CV, jetFlowLps, jetSpeedMs, NOZZLE_MM } from "./sim/jet";
 import { isCorrectOrder, PLANT_ORDER } from "./sim/order";
 import { powerKW } from "./sim/power";
 import { trapLengthM, widthTooLarge, zankeVdMmS } from "./sim/settling";
@@ -280,6 +283,13 @@ export interface SimHooks {
   /** Tells the panel which step the water is in. */
   onStep(id: string | null): void;
   setBasin(flowLps: number, widthM: number): void;
+  /** Moves the energy line of lesson 4. */
+  setLoss(hfM: number, h0M: number): void;
+  /** Plays the valve closing of lesson 5; `onDone` runs when it ends. */
+  runHammer(params: HammerParams, onDone: () => void): void;
+  /** Spear opening of lesson 6, 0..1. */
+  setOpening(opening: number): void;
+  setDeflector(on: boolean): void;
 }
 
 interface SliderSpec {
@@ -354,7 +364,33 @@ export function mountSim(host: HTMLElement, lesson: Lesson, hooks: SimHooks): vo
   host.innerHTML = "";
   if (lesson.sim === "order") mountOrder(host, lesson, hooks);
   else if (lesson.sim === "power") mountPower(host);
-  else mountSettling(host, hooks);
+  else if (lesson.sim === "settling") mountSettling(host, hooks);
+  else if (lesson.sim === "friction") mountFriction(host, hooks);
+  else if (lesson.sim === "hammer") mountHammer(host, hooks);
+  else mountJet(host, hooks);
+}
+
+function selectHtml(name: string, label: string, options: [string, string][]): string {
+  return (
+    `<div class="sl"><div class="row"><label class="h" for="sim-${name}">${esc(label)}</label></div>` +
+    `<select id="sim-${name}" name="${name}">${options.map(([v, t]) => `<option value="${v}">${esc(t)}</option>`).join("")}</select></div>`
+  );
+}
+
+const cell = (label: string, out: string, accent = false) =>
+  `<div><small class="h">${esc(label)}</small><div class="v mono${accent ? " accent" : ""}" data-out="${out}"></div></div>`;
+
+function setOut(host: HTMLElement, key: string, text: string): void {
+  const e = host.querySelector<HTMLElement>(`[data-out="${key}"]`);
+  if (e) e.textContent = text;
+}
+
+/** Shows or hides the warning `data-out` element; the text is kept only while it is visible. */
+function setWarn(host: HTMLElement, text: string, show: boolean): void {
+  const e = host.querySelector<HTMLElement>('[data-out="warn"]');
+  if (!e) return;
+  e.hidden = !show;
+  e.textContent = show ? text : "";
 }
 
 const SHUFFLE = [3, 0, 5, 2, 6, 1, 4];
@@ -504,4 +540,134 @@ function mountSettling(host: HTMLElement, hooks: SimHooks): void {
   });
   s.reset();
   host.querySelector("[data-reset]")?.addEventListener("click", () => s.reset());
+}
+
+function mountFriction(host: HTMLElement, hooks: SimHooks): void {
+  const specs: SliderSpec[] = [
+    { name: "flow", label: "Flow (Q)", min: 10, max: 100, step: 1, value: 40, fmt: (v) => `${v} L/s` },
+    { name: "diameter", label: "Inside diameter (D)", min: 100, max: 300, step: 10, value: 200, fmt: (v) => `${v} mm` },
+    { name: "length", label: "Length (L)", min: 50, max: 500, step: 10, value: 150, fmt: (v) => `${v} m` },
+  ];
+  host.innerHTML =
+    head("Size the penstock", resetBtn) +
+    specs.map(sliderHtml).join("") +
+    selectHtml("material", "Pipe material", [["pe", "Polyethylene"], ["steel", "Welded steel"]]) +
+    `<div class="outs"><div><small class="h">Gross head</small><div class="v mono">${GROSS_HEAD_M} m</div></div>` +
+    cell("Speed V", "velocity") + cell("Friction factor f", "f") + cell("Friction loss hf", "loss") +
+    cell("Net head", "net", true) + cell("Loss", "pct") + `</div>` +
+    `<div class="warn" data-out="warn" data-claims="D6" role="alert" hidden></div>` +
+    `<div class="formula mono">Limit: friction only. Rack, entry, bends and valve losses are not counted.</div>`;
+  const material = host.querySelector<HTMLSelectElement>('select[name="material"]');
+  const update = () => {
+    const dMm = s.get("diameter");
+    const dM = dMm / 1000;
+    const velocity = pipeVelocityMs(s.get("flow"), dMm);
+    const f = swameeJainF(ROUGHNESS_MM[material?.value === "steel" ? "steel" : "pe"], dM, reynolds(velocity, dM));
+    const hf = frictionLossM(f, s.get("length"), dM, velocity);
+    const pct = (hf / GROSS_HEAD_M) * 100;
+    setOut(host, "velocity", `${velocity.toFixed(2)} m/s`);
+    setOut(host, "f", f.toFixed(4));
+    setOut(host, "loss", `${hf.toFixed(2)} m`);
+    setOut(host, "net", `${(GROSS_HEAD_M - hf).toFixed(1)} m`);
+    setOut(host, "pct", `${pct.toFixed(1)} %`);
+    setWarn(host, "Warning: more than 5 % of the head is lost. The usual target is a few percent.", pct > 5);
+    hooks.setLoss(hf, GROSS_HEAD_M);
+  };
+  const s = bindSliders(host, specs, update);
+  material?.addEventListener("change", update);
+  s.reset();
+  host.querySelector("[data-reset]")?.addEventListener("click", () => {
+    if (material) material.value = "pe";
+    s.reset();
+  });
+}
+
+function mountHammer(host: HTMLElement, hooks: SimHooks): void {
+  const FLOW_LPS = 40;
+  const DIAMETER_MM = 200;
+  const v0 = pipeVelocityMs(FLOW_LPS, DIAMETER_MM);
+  const specs: SliderSpec[] = [
+    { name: "time", label: "Closing time (t)", min: 0.1, max: 20, step: 0.1, value: 5, fmt: (v) => `${v.toFixed(1)} s` },
+    { name: "length", label: "Length (L)", min: 50, max: 500, step: 10, value: 150, fmt: (v) => `${v} m` },
+  ];
+  host.innerHTML =
+    head("Close the valve", resetBtn) +
+    specs.map(sliderHtml).join("") +
+    selectHtml("material", "Pipe material", [["steel", "Steel"], ["pvc", "PVC"]]) +
+    `<div class="acts"><button type="button" class="act primary" data-run>Close the valve</button></div>` +
+    `<div class="outs">` +
+    cell("Wave speed c", "c") + cell("Critical time Tc", "tc") + cell("Surge ΔH", "surge") +
+    cell("Maximum head", "max", true) + cell("Closing", "mode") + `</div>` +
+    `<div class="warn" data-out="warn" data-claims="E8" role="alert" hidden></div>` +
+    `<div class="formula mono">Q = ${FLOW_LPS} L/s, D = ${DIAMETER_MM} mm, H₀ = ${GROSS_HEAD_M} m. Limit: no friction, full stop.</div>`;
+  const material = host.querySelector<HTMLSelectElement>('select[name="material"]');
+  let params: HammerParams = { closeS: 0, h0M: GROSS_HEAD_M, dH: 0 };
+  const update = () => {
+    const pipe = PIPES[material?.value === "pvc" ? "pvc" : "steel"];
+    const length = s.get("length");
+    const closeS = s.get("time");
+    const c = waveSpeedMs(pipe.e, pipe.dOverT);
+    const { dH, sudden } = surgeM(c, length, v0, GROSS_HEAD_M, closeS);
+    params = { closeS, h0M: GROSS_HEAD_M, dH };
+    setOut(host, "c", `${c.toFixed(1)} m/s`);
+    setOut(host, "tc", `${criticalTimeS(length, c).toFixed(2)} s`);
+    setOut(host, "surge", `${dH.toFixed(2)} m`);
+    setOut(host, "max", `${(GROSS_HEAD_M + dH).toFixed(1)} m`);
+    setOut(host, "mode", sudden ? "sudden" : "gradual");
+    setWarn(host, "Warning: the surge is more than 30 % of the static head.", dH > 0.3 * GROSS_HEAD_M);
+  };
+  const s = bindSliders(host, specs, update);
+  material?.addEventListener("change", update);
+  s.reset();
+  const run = host.querySelector<HTMLButtonElement>("[data-run]");
+  run?.addEventListener("click", () => {
+    run.disabled = true;
+    hooks.runHammer(params, () => {
+      run.disabled = false;
+    });
+  });
+  host.querySelector("[data-reset]")?.addEventListener("click", () => {
+    if (material) material.value = "steel";
+    s.reset();
+  });
+}
+
+function mountJet(host: HTMLElement, hooks: SimHooks): void {
+  const specs: SliderSpec[] = [
+    { name: "head", label: "Net head (H)", min: 20, max: 200, step: 1, value: 59, fmt: (v) => `${v} m` },
+    { name: "opening", label: "Spear opening", min: 10, max: 100, step: 1, value: 100, fmt: (v) => `${v} %` },
+  ];
+  host.innerHTML =
+    head("Open the spear", resetBtn) +
+    specs.map(sliderHtml).join("") +
+    `<label class="chk h"><input type="checkbox" name="deflector"> Deflector in</label>` +
+    `<div class="outs">` +
+    cell("Jet speed v", "speed") + cell("Flow Q", "flow") + cell("Power to the runner", "power", true) + `</div>` +
+    `<div class="warn" data-out="note" data-claims="F5" role="status" hidden></div>` +
+    `<div class="formula mono">Cv = ${CV}, nozzle d₀ = ${NOZZLE_MM} mm, e = 0.6. Limit: area ∝ opening (simplified).</div>`;
+  const deflector = host.querySelector<HTMLInputElement>('input[name="deflector"]');
+  const note = host.querySelector<HTMLElement>('[data-out="note"]');
+  const update = () => {
+    const h = s.get("head");
+    const opening = s.get("opening") / 100;
+    const on = deflector?.checked ?? false;
+    const speed = jetSpeedMs(h, CV);
+    const flow = jetFlowLps(speed, NOZZLE_MM, opening);
+    setOut(host, "speed", `${speed.toFixed(1)} m/s`);
+    setOut(host, "flow", `${flow.toFixed(1)} L/s`);
+    setOut(host, "power", `${(on ? 0 : powerKW(h, flow, 0.6)).toFixed(1)} kW`);
+    if (note) {
+      note.hidden = !on;
+      note.textContent = on ? "Water still flows: no water hammer." : "";
+    }
+    hooks.setOpening(opening);
+    hooks.setDeflector(on);
+  };
+  const s = bindSliders(host, specs, update);
+  deflector?.addEventListener("change", update);
+  s.reset();
+  host.querySelector("[data-reset]")?.addEventListener("click", () => {
+    if (deflector) deflector.checked = false;
+    s.reset();
+  });
 }

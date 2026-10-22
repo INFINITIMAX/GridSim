@@ -72,12 +72,14 @@ export interface PartOpts {
   lw?: number;
   emissive?: number;
   opacity?: number;
+  /** Which faces are drawn (BackSide for the inside of a cut-open shell). */
+  side?: THREE.Side;
 }
 
 export function part(geom: THREE.BufferGeometry, color: number, o: PartOpts = {}): THREE.Group {
-  const { edges = true, hull = true, angle = 30, map = null, thick = 0.016, lw = 1.3, emissive = 0, opacity = 1 } = o;
+  const { edges = true, hull = true, angle = 30, map = null, thick = 0.016, lw = 1.3, emissive = 0, opacity = 1, side = THREE.FrontSide } = o;
   const g = new THREE.Group();
-  const mat = new THREE.MeshLambertMaterial({ color, map, emissive, transparent: opacity < 1, opacity });
+  const mat = new THREE.MeshLambertMaterial({ color, map, emissive, transparent: opacity < 1, opacity, side });
   const mesh = new THREE.Mesh(geom, mat);
   mesh.castShadow = opacity === 1;
   mesh.receiveShadow = true;
@@ -163,6 +165,21 @@ export function labelSprite(text: string, color: string, size: number): THREE.Sp
   });
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
   s.scale.set(size, size, 1);
+  s.renderOrder = 11;
+  return s;
+}
+
+/** A short word or phrase as a sprite, `height` tall and four times as wide (4:1 canvas). */
+export function wordSprite(text: string, color: string, height: number): THREE.Sprite {
+  const tex = textTex(512, 128, (x, w, h) => {
+    x.fillStyle = color;
+    x.font = '700 72px "Barlow Semi Condensed"';
+    x.textAlign = "center";
+    x.textBaseline = "middle";
+    x.fillText(text, w / 2, h / 2);
+  });
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+  s.scale.set(height * 4, height, 1);
   s.renderOrder = 11;
   return s;
 }

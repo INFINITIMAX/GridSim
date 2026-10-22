@@ -1,8 +1,10 @@
 // Learn Energy · Hydro · Pelton: page wiring (scene, camera, lesson switching).
 import * as THREE from "three";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
-import { LESSONS, LESSON_TITLES, UNLOCKED, type Lesson } from "./lessons";
+import { LESSONS, LESSON_TITLES, UNLOCKED, type Lesson, type SceneId } from "./lessons";
 import { createIntake, type IntakeScene } from "./scenes/intake";
+import { createNozzle, type NozzleScene } from "./scenes/nozzle";
+import { createPenstock, type PenstockScene } from "./scenes/penstock";
 import { THUMB_MAKERS } from "./scenes/pelton";
 import { createPlant, type PlantScene } from "./scenes/plant";
 import { addLights, disposeObject, setLineResolution, shadowGround, type LessonScene } from "./toon";
@@ -77,7 +79,7 @@ const scene = new THREE.Scene();
 addLights(scene, 10);
 const ground = shadowGround(-0.5);
 scene.add(ground);
-const GROUND_Y = { plant: -0.5, intake: -0.9 };
+const GROUND_Y: Record<SceneId, number> = { plant: -0.5, intake: -0.9, penstock: -0.3, nozzle: -3.45 };
 
 const camera = new THREE.OrthographicCamera();
 const ELEV = Math.atan(0.85 / Math.SQRT2);
@@ -102,6 +104,24 @@ const getIntake = (): IntakeScene => {
     scene.add(intakeScene.group);
   }
   return intakeScene;
+};
+let penstockScene: PenstockScene | null = null;
+let nozzleScene: NozzleScene | null = null;
+const getPenstock = (): PenstockScene => {
+  if (!penstockScene) {
+    penstockScene = createPenstock();
+    penstockScene.group.visible = false;
+    scene.add(penstockScene.group);
+  }
+  return penstockScene;
+};
+const getNozzle = (): NozzleScene => {
+  if (!nozzleScene) {
+    nozzleScene = createNozzle();
+    nozzleScene.group.visible = false;
+    scene.add(nozzleScene.group);
+  }
+  return nozzleScene;
 };
 
 let lesson: Lesson | null = null;
@@ -183,13 +203,16 @@ function selectLesson(n: number): void {
   lesson = l;
   const plant = getPlant();
   const intake = getIntake();
-  active = l.scene === "plant" ? plant : intake;
-  plant.group.visible = active === plant;
-  intake.group.visible = active === intake;
+  active = { plant: getPlant, intake: getIntake, penstock: getPenstock, nozzle: getNozzle }[l.scene]();
+  for (const s of [plant, intake, penstockScene, nozzleScene]) {
+    if (!s) continue;
+    s.group.visible = s === active;
+    s.highlight(null);
+  }
   plant.stopDrop();
-  plant.highlight(null);
-  intake.highlight(null);
+  penstockScene?.stopHammer();
   plant.setDims(n === 2);
+  penstockScene?.setLesson(n);
   ground.position.y = GROUND_Y[l.scene];
 
   history.replaceState(null, "", `?lesson=${n}`);
@@ -202,6 +225,17 @@ function selectLesson(n: number): void {
     runDrop: (onPart, onDone) => plant.runDrop(onPart, onDone),
     onStep: (id) => setActiveStep(panelBody, id),
     setBasin: (q, b) => intake.setBasin(q, b),
+    setLoss: (hf, h0) => {
+      getPenstock().setLoss(hf, h0);
+      updateCallouts();
+      dirty = true;
+    },
+    runHammer: (p, onDone) => getPenstock().runHammer(p, onDone),
+    setOpening: (o) => {
+      getNozzle().setOpening(o);
+      dirty = true;
+    },
+    setDeflector: (on) => getNozzle().setDeflector(on),
   });
   resetView();
 }
