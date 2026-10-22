@@ -1,5 +1,9 @@
 # Auditul calculelor hidro (22-10-2026)
 
+## Stare (22-10-2026)
+
+Punctele 1–5 sunt corectate în pasul S4: randamentele vin din RETScreen Anexa A, iar generatorul (95%) și transformatorul (1%) sunt incluse. Presupunerile de joc rămân și urmează să fie marcate în UI. Tabelele de mai jos descriu starea dinainte de corectură.
+
 ## Pe scurt
 
 - **Codul face exact ce spun regulile.** 19.440 de combinații (tehnologie × mărime × număr × baraj × canal × scara de pești × stavile × grătar × debit) plus 6 calcule anuale au fost recalculate de la zero, în Python, fără cod comun cu jocul. Diferența maximă e 9·10⁻¹⁶, adică zero practic.

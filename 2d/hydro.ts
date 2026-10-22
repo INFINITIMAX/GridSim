@@ -15,6 +15,9 @@ export const AVERAGE_CLOG_NO_CLEANER = 0.5; // assumed average clog over a year 
 export const MONTHLY_FLOW = [1.8, 2.2, 4.2, 6.5, 6.0, 4.0, 2.4, 1.4, 1.2, 1.6, 2.2, 2.0]; // m³/s, Jan..Dec, example mountain river: snowmelt in spring, low in autumn
 export const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 export const HOURS_PER_YEAR = 8760;
+export const GENERATOR_EFFICIENCY = 0.95; // typical small hydro generator; RETScreen leaves it to the user (eq. 7)
+export const TRANSFORMER_LOSS = 0.01; // 1% lost in the step-up transformer, typical value (eq. 7)
+export const RUNNER_COEFFICIENT = 4.5; // RETScreen R_m, turbine manufacture/design coefficient, default 4.5 (2.8 to 6.1)
 
 export type DamHeight = (typeof DAM_HEIGHTS)[number];
 
@@ -22,48 +25,82 @@ export interface Technology {
   id: "kaplan" | "francis" | "crossflow";
   name: string;
   description: string;
-  peakEfficiency: number;
   /** Fraction of designFlow below which it cannot run. */
   minLoad: number;
   /** Gross head range it can work in, m. */
   minHead: number;
   maxHead: number;
-  /** Share of peak efficiency kept at load `load` (flow through the turbine divided by its design flow). */
-  partLoad: (load: number) => number;
 }
 
 export const TECHNOLOGIES: readonly Technology[] = [
   {
     id: "kaplan",
     name: "Kaplan",
-    description: "Adjustable blades. Good across a wide range of flows, low head.",
-    peakEfficiency: 0.9,
+    description: "Adjustable blades. Efficient across a wide range of flows at low head, but weak below about a third of its design flow.",
     minLoad: 0.2,
     minHead: 2,
     maxHead: 20,
-    partLoad: (load) => 1 - 0.15 * (1 - load) ** 2,
   },
   {
     id: "francis",
     name: "Francis",
-    description: "Highest peak efficiency, but only near its design flow. Needs 10 m of head or more.",
-    peakEfficiency: 0.92,
+    description: "Built for high head. Efficient only near its design flow. At the 10 to 12 m this river allows it is a poor fit.",
     minLoad: 0.4,
     minHead: 10,
     maxHead: 300,
-    partLoad: (load) => 1 - (load - 0.85) ** 2,
   },
   {
     id: "crossflow",
     name: "Crossflow",
-    description: "Simple and robust. Lower efficiency, but it barely drops at low flow.",
-    peakEfficiency: 0.8,
+    description: "Simple and robust. Below the others at full flow, ahead of them in a dry month.",
     minLoad: 0.15,
     minHead: 2,
     maxHead: 100,
-    partLoad: (load) => 1 - 0.08 * (1 - load) ** 2,
   },
 ];
+
+/**
+ * Turbine efficiency, from RETScreen Small Hydro Project Analysis (Natural Resources Canada), Annex A, pages HYDRO.37-40.
+ * `ratedHead` is the nominal head in m (gross head minus canal loss), `designFlow` the turbine's design flow and `flow` the flow through it, both in m³/s.
+ */
+export function turbineEfficiency(tech: Technology, ratedHead: number, designFlow: number, flow: number): number {
+  const d = 0.46 * designFlow ** 0.473; // runner diameter, m
+  let eq: number;
+  if (tech.id === "kaplan") {
+    const nq = 800 * ratedHead ** -0.5;
+    const enq = ((nq - 170) / 700) ** 2;
+    const ed = (0.095 + enq) * (1 - 0.789 * d ** -0.2);
+    const ep = 0.905 - enq + ed - 0.0305 + 0.005 * RUNNER_COEFFICIENT;
+    const qp = 0.75 * designFlow;
+    eq = (1 - 3.5 * ((qp - flow) / qp) ** 6) * ep;
+  } else if (tech.id === "francis") {
+    const nq = 600 * ratedHead ** -0.5;
+    const enq = ((nq - 56) / 256) ** 2;
+    const ed = (0.081 + enq) * (1 - 0.789 * d ** -0.2);
+    const ep = 0.919 - enq + ed - 0.0305 + 0.005 * RUNNER_COEFFICIENT;
+    const qp = 0.65 * designFlow * nq ** 0.05;
+    // Below about 9 m of head the formula leaves its range (negative exponent or peak); a Francis there makes nothing.
+    if (ep <= 0 || 3.94 - 0.0195 * nq <= 0) return 0;
+    if (flow <= qp) {
+      eq = (1 - 1.25 * ((qp - flow) / qp) ** (3.94 - 0.0195 * nq)) * ep;
+    } else {
+      const er = (1 - 0.0072 * nq ** 0.4) * ep; // efficiency at full load
+      eq = ep - ((flow - qp) / (designFlow - qp)) ** 2 * (ep - er);
+    }
+  } else {
+    const x = (designFlow - flow) / designFlow;
+    eq = 0.79 - 0.15 * x - 1.37 * x ** 14;
+  }
+  return Math.max(eq, 0);
+}
+
+/** Efficiency at the peak flow Qp (the design flow for Crossflow). */
+export function peakEfficiency(tech: Technology, ratedHead: number, designFlow: number): number {
+  if (tech.id === "crossflow") return turbineEfficiency(tech, ratedHead, designFlow, designFlow);
+  if (tech.id === "kaplan") return turbineEfficiency(tech, ratedHead, designFlow, 0.75 * designFlow);
+  const nq = 600 * ratedHead ** -0.5;
+  return turbineEfficiency(tech, ratedHead, designFlow, 0.65 * designFlow * nq ** 0.05);
+}
 
 export interface TurbineSize {
   id: "small" | "medium" | "large";
@@ -110,6 +147,9 @@ export interface Operation {
   ecoFlow: number;
   load: number;
   efficiency: number;
+  /** Power at the turbine shaft, before generator and transformer losses. */
+  turbineKW: number;
+  /** Power delivered to the grid, after generator and transformer. */
   powerKW: number;
   /** Nameplate power: all turbines at full load, clean rack, head check ignored. */
   installedKW: number;
@@ -147,7 +187,9 @@ export function operate(setup: PlantSetup, riverFlow: number, clog: number): Ope
 
   // Power P = rho * g * Q * H * eta: 1000 kg/m³ * 9.81 m/s² * flow * head * efficiency, divided by 1000 for kW.
   const kW = (q: number, head: number, eta: number): number => (1000 * 9.81 * q * head * eta) / 1000;
-  const installedKW = count * kW(size.designFlow, grossHead - canalLossM, tech.peakEfficiency * tech.partLoad(1));
+  const ratedHead = grossHead - canalLossM;
+  const toGrid = GENERATOR_EFFICIENCY * (1 - TRANSFORMER_LOSS);
+  const installedKW = count * kW(size.designFlow, ratedHead, turbineEfficiency(tech, ratedHead, size.designFlow, size.designFlow)) * toGrid;
   const qMin = tech.minLoad * size.designFlow;
   const maxRunnable = Math.min(count, Math.floor(available / qMin + 1e-9));
   const headOk = grossHead >= tech.minHead && grossHead <= tech.maxHead;
@@ -157,7 +199,7 @@ export function operate(setup: PlantSetup, riverFlow: number, clog: number): Ope
   const common = { ecoFlow, installedKW, grossHead, netHead, rackLossM, canalLossM, stopReason };
 
   if (stopReason) {
-    return { running: 0, flowPerTurbine: 0, usedFlow: 0, spilledFlow: available, load: 0, efficiency: 0, powerKW: 0, energyPerDayMWh: 0, ...common };
+    return { running: 0, flowPerTurbine: 0, usedFlow: 0, spilledFlow: available, load: 0, efficiency: 0, turbineKW: 0, powerKW: 0, energyPerDayMWh: 0, ...common };
   }
 
   /** The plant with exactly `running` turbines sharing the available water. */
@@ -165,9 +207,10 @@ export function operate(setup: PlantSetup, riverFlow: number, clog: number): Ope
     const flowPerTurbine = Math.min(size.designFlow, available / running);
     const usedFlow = running * flowPerTurbine;
     const load = flowPerTurbine / size.designFlow;
-    const efficiency = tech.peakEfficiency * tech.partLoad(load);
-    const powerKW = kW(usedFlow, netHead, efficiency);
-    return { running, flowPerTurbine, usedFlow, spilledFlow: available - usedFlow, load, efficiency, powerKW, energyPerDayMWh: (powerKW * 24) / 1000, ...common };
+    const efficiency = turbineEfficiency(tech, ratedHead, size.designFlow, flowPerTurbine);
+    const turbineKW = kW(usedFlow, netHead, efficiency);
+    const powerKW = turbineKW * toGrid;
+    return { running, flowPerTurbine, usedFlow, spilledFlow: available - usedFlow, load, efficiency, turbineKW, powerKW, energyPerDayMWh: (powerKW * 24) / 1000, ...common };
   };
 
   // Like a real operator: shut turbines down when fewer, fuller ones make more power. Ties keep the smaller number.

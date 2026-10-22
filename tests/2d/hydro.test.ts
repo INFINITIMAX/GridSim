@@ -1,7 +1,8 @@
-// Teste S3 pentru fizica hidrocentralei (2d/hydro.ts). Valorile așteptate vin din calcul de mână
-// (P = 9,81 · Q · H_net · η), nu din rularea codului. Vezi docs/handoff/S3-tester-raport.md.
+// Teste S3+S4 pentru fizica hidrocentralei (2d/hydro.ts). Valorile așteptate vin din calcul de mână
+// (P_turbină = 9,81 · Q · H_net · η_RETScreen; P_rețea = P_turbină · 0,95 · 0,99), nu din rularea codului.
+// Vezi docs/handoff/S3-tester-raport.md și S4-tester-raport.md (calculele complete).
 import { describe, expect, it } from "vitest";
-import { MAX_TURBINES, annual, operate, powerCurve, stepClog } from "../../2d/hydro";
+import { MAX_TURBINES, annual, operate, peakEfficiency, powerCurve, stepClog, technologyById, turbineEfficiency } from "../../2d/hydro";
 import type { PlantSetup } from "../../2d/hydro";
 
 type Tech = PlantSetup["technology"];
@@ -61,23 +62,30 @@ describe("operate: cazuri de mână", () => {
     net: number;
     kw: number;
   }
+  // Calcul de mână (toGrid = 0,95·0,99 = 0,9405):
+  // Kaplan h=5, Qd=2: eta(Qd)=0,843838 -> A,B: 9,81·2·5·0,843838 = 82,78 kW turbină; ·0,9405 = 77,855 kW.
+  // F (clog 1): net 4,7, eta ramâne (depinde de ratedHead=5): 9,81·2·4,7·0,843838=77,81; ·0,9405 = 73,184.
+  // C Francis h=11,6, Qd=2, Q=Qd: er=0,690243 -> 9,81·2·11,6·0,690243=157,09; ·0,9405 = 147,747.
+  // H Crossflow Q=0,35, Qd=2: x=0,825; eta=0,79-0,15·0,825-1,37·0,825^14=0,57355 -> 9,81·0,35·5·0,57355=9,846; ·0,9405 = 9,261.
+  // I Francis x2: k=1 (Q=2): 157,09 kW turbină; k=2 (Q=1,5 fiecare, eta=0,433069): 9,81·3·11,6·0,433069=147,85.
+  //   157,09 > 147,85 deci o singură turbină pe plin bate două la 75%: running 1, used 2, spilled 1, kw 147,747.
   const rows: Row[] = [
-    { name: "A baza", s: setup(), flow: 3, stop: null, running: 1, used: 2, spilled: 1, eco: 0, net: 5, kw: 88.29 },
-    { name: "B scara de pești", s: setup({ fishLadder: true }), flow: 3, stop: null, running: 1, used: 2, spilled: 0.7, eco: 0.3, net: 5, kw: 88.29 },
+    { name: "A baza", s: setup(), flow: 3, stop: null, running: 1, used: 2, spilled: 1, eco: 0, net: 5, kw: 77.855 },
+    { name: "B scara de pești", s: setup({ fishLadder: true }), flow: 3, stop: null, running: 1, used: 2, spilled: 0.7, eco: 0.3, net: 5, kw: 77.855 },
     {
       name: "C Francis dam 8 canal scară",
       s: setup({ technology: "francis", damHeight: 8, canal: true, fishLadder: true }),
-      flow: 3, stop: null, running: 1, used: 2, spilled: 0.7, eco: 0.3, net: 11.6, kw: 204.67,
+      flow: 3, stop: null, running: 1, used: 2, spilled: 0.7, eco: 0.3, net: 11.6, kw: 147.747,
     },
     { name: "D Francis dam 5 (cădere prea mică)", s: setup({ technology: "francis" }), flow: 3, stop: "head", running: 0, used: 0, spilled: 3, eco: 0, net: 5, kw: 0 },
     { name: "E fără stavile, debit 9", s: setup({ gates: false, fishLadder: true }), flow: 9, stop: "flood", running: 0, used: 0, spilled: 8.7, eco: 0.3, net: 5, kw: 0 },
-    { name: "F grătar înfundat 100%", s: setup(), flow: 3, stop: null, running: 1, used: 2, spilled: 1, eco: 0, net: 4.7, kw: 82.99 },
+    { name: "F grătar înfundat 100%", s: setup(), flow: 3, stop: null, running: 1, used: 2, spilled: 1, eco: 0, net: 4.7, kw: 73.184 },
     { name: "G debit sub prag", s: setup(), flow: 0.35, stop: "low-flow", running: 0, used: 0, spilled: 0.35, eco: 0, net: 5, kw: 0 },
-    { name: "H Crossflow la debit mic", s: setup({ technology: "crossflow" }), flow: 0.35, stop: null, running: 1, used: 0.35, spilled: 0, eco: 0, net: 5, kw: 12.99 },
+    { name: "H Crossflow la debit mic", s: setup({ technology: "crossflow" }), flow: 0.35, stop: null, running: 1, used: 0.35, spilled: 0, eco: 0, net: 5, kw: 9.261 },
     {
-      name: "I Francis x2 dam 8 canal",
+      name: "I Francis x2 dam 8 canal (o turbină pe plin bate două la 75%)",
       s: setup({ technology: "francis", count: 2, damHeight: 8, canal: true }),
-      flow: 3, stop: null, running: 2, used: 3, spilled: 0, eco: 0, net: 11.6, kw: 310.94,
+      flow: 3, stop: null, running: 1, used: 2, spilled: 1, eco: 0, net: 11.6, kw: 147.747,
     },
   ];
 
@@ -93,14 +101,108 @@ describe("operate: cazuri de mână", () => {
     near(op.powerKW, r.kw);
   });
 
-  it("C: installedKW = 204,67 (fără pierderea la grătar)", () => {
+  it("C: installedKW = 147,747 (fără pierderea la grătar)", () => {
     const op = operate(setup({ technology: "francis", damHeight: 8, canal: true, fishLadder: true }), 3, 0);
-    near(op.installedKW, 204.67);
+    near(op.installedKW, 147.747);
   });
 
   it("C: installedKW nu scade cu grătarul înfundat", () => {
     const s = setup({ technology: "francis", damHeight: 8, canal: true });
-    near(operate(s, 3, 1).installedKW, 204.67);
+    near(operate(s, 3, 1).installedKW, 147.747);
+  });
+
+  it("A: randamentul raportat = eta(Qd) Kaplan h=5 = 0,843838", () => {
+    near(operate(setup(), 3, 0).efficiency, 0.843838);
+  });
+});
+
+describe("lanțul de puteri: turbină -> generator -> transformator", () => {
+  it("A: turbineKW = 82,78 și powerKW = turbineKW · 0,95 · 0,99", () => {
+    const op = operate(setup(), 3, 0);
+    near(op.turbineKW, 82.7805); // 9,81·2·5·0,843838
+    near(op.powerKW, op.turbineKW * 0.95 * 0.99);
+  });
+
+  it("energyPerDayMWh se calculează din powerKW (rețea), nu din turbină", () => {
+    const op = operate(setup(), 3, 0);
+    near(op.energyPerDayMWh, (77.855 * 24) / 1000);
+  });
+
+  it("caz oprit (head): turbineKW = 0 și powerKW = 0", () => {
+    const op = operate(setup({ technology: "francis" }), 3, 0);
+    expect(op.stopReason).toBe("head");
+    expect(op.turbineKW).toBe(0);
+    expect(op.powerKW).toBe(0);
+  });
+
+  it("caz oprit (low-flow): turbineKW = 0", () => {
+    expect(operate(setup(), 0.35, 0).turbineKW).toBe(0);
+  });
+});
+
+describe("turbineEfficiency / peakEfficiency (RETScreen Anexa A, valori de mână)", () => {
+  // d = 0,46·Qd^0,473; Qd=2 -> d=0,638476; 1-0,789·d^-0,2 = 0,136923. Rm=4,5 -> -0,0305+0,0225 = -0,008.
+  const kaplan = technologyById("kaplan");
+  const francis = technologyById("francis");
+  const crossflow = technologyById("crossflow");
+
+  // Kaplan h=5: nq=357,77; enq=(187,77/700)²=0,07196; ed=(0,095+0,07196)·0,136923=0,02286;
+  // ep=0,905-0,07196+0,02286-0,008=0,84790; Qp=1,5.
+  describe("Kaplan h=5, Qd=2", () => {
+    it("la Qp = 1,5: eq = ep = 0,8479", () => near(turbineEfficiency(kaplan, 5, 2, 1.5), 0.8479));
+    it("la Qd = 2: x=-1/3, 1-3,5·(1/3)^6=0,995199 -> 0,84384 (formula e aceeași peste Qp)", () => near(turbineEfficiency(kaplan, 5, 2, 2), 0.84384));
+    it("la Q = 0,4 (20%): x=0,73333, x^6=0,155528, 1-3,5·x^6=0,455652 -> 0,38635; sub 0,5", () => {
+      const e = turbineEfficiency(kaplan, 5, 2, 0.4);
+      near(e, 0.38635);
+      expect(e).toBeLessThan(0.5);
+    });
+    it("peakEfficiency = eficiența la Qp = 0,8479", () => {
+      near(peakEfficiency(kaplan, 5, 2), 0.8479);
+      near(peakEfficiency(kaplan, 5, 2), turbineEfficiency(kaplan, 5, 2, 1.5));
+    });
+  });
+
+  // Francis h=11,6: nq=176,159; enq=(120,159/256)²=0,22031; ed=(0,081+0,22031)·0,136923=0,04126;
+  // ep=0,919-0,22031+0,04126-0,008=0,73195; Qp=0,65·2·nq^0,05=1,3·1,295075=1,68360;
+  // er=(1-0,0072·nq^0,4)·ep=(1-0,0072·7,91336)·ep=0,943024·ep=0,69024.
+  describe("Francis h=11,6, Qd=2", () => {
+    it("la Qp = 1,6836: eq = ep = 0,73195", () => near(turbineEfficiency(francis, 11.6, 2, 1.683598), 0.73195));
+    it("la Q = 1,5 (sub Qp): (0,109051)^0,504907=0,326655; 1-1,25·0,326655=0,591681 -> 0,43307", () =>
+      near(turbineEfficiency(francis, 11.6, 2, 1.5), 0.43307));
+    it("la Qd = 2 (peste Qp): raportul = 1 -> eq = er = 0,69024", () => near(turbineEfficiency(francis, 11.6, 2, 2), 0.69024));
+    it("la Q = 1,8 (peste Qp): ((1,8-1,6836)/0,3164)²=0,13535 -> 0,73195-0,13535·0,04171 = 0,72630", () =>
+      near(turbineEfficiency(francis, 11.6, 2, 1.8), 0.7263));
+    it("vârful e la Qp: mai mare decât la 1,5 și la Qd", () => {
+      const peak = turbineEfficiency(francis, 11.6, 2, 1.683598);
+      expect(peak).toBeGreaterThan(turbineEfficiency(francis, 11.6, 2, 1.5));
+      expect(peak).toBeGreaterThan(turbineEfficiency(francis, 11.6, 2, 2));
+    });
+    it("peakEfficiency = eficiența la Qp = 0,73195", () => near(peakEfficiency(francis, 11.6, 2), 0.73195));
+  });
+
+  describe("Crossflow Qd=2", () => {
+    it("la Qd: x=0 -> 0,79", () => near(turbineEfficiency(crossflow, 5, 2, 2), 0.79));
+    it("la Q = 0,3: x=0,85; 0,79-0,1275-1,37·0,85^14(=0,10277) = 0,52171", () => near(turbineEfficiency(crossflow, 5, 2, 0.3), 0.52171));
+    it("peakEfficiency = 0,79 (la Qd)", () => near(peakEfficiency(crossflow, 5, 2), 0.79));
+    it("nu depinde de cădere", () => near(turbineEfficiency(crossflow, 11.6, 2, 0.3), 0.52171));
+  });
+
+  describe("limitarea la 0", () => {
+    // Francis h=3, Qd=1: nq=346,41; enq=1,28693; ed=0,10729; ep=0,919-1,28693+0,10729-0,008=-0,2686 (negativ);
+    // Qp=0,87075. Peste Qp (ramura er): Q=0,9 -> eq = ep - 0,0512·(ep-er) < 0; la Qd eq=er=-0,2485 < 0 -> ambele 0.
+    // Sub ~8,8 m formula iese din domeniu (exponent 3,94-0,0195·nq negativ, ep negativ); garda din cod dă 0 pe ambele ramuri.
+    it("Francis h=3 la Q=0,1 (sub Qp, exponent negativ): exact 0, nu o valoare pozitivă falsă", () => {
+      expect(turbineEfficiency(francis, 3, 1, 0.1)).toBe(0);
+    });
+    it("Francis h=3 la Q=0,9 (peste Qp): exact 0, nu negativ", () => {
+      expect(turbineEfficiency(francis, 3, 1, 0.9)).toBe(0);
+    });
+    it("Francis h=3 la Qd: exact 0, nu negativ", () => {
+      expect(turbineEfficiency(francis, 3, 1, 1)).toBe(0);
+    });
+    it("Kaplan la 0 debit nu dă negativ (1-3,5 < 0)", () => {
+      expect(turbineEfficiency(kaplan, 5, 2, 0)).toBe(0);
+    });
   });
 });
 
@@ -120,16 +222,18 @@ describe("stepClog", () => {
 });
 
 describe("annual", () => {
-  it("ianuarie cu curățitor: ≈ 58,85 MWh (clog 0,05, debit 1,8)", () => {
+  it("ianuarie cu curățitor: ≈ 52,214 MWh (clog 0,05, debit 1,8)", () => {
+    // net = 4,985; eta(Q=1,8) = (1-3,5·0,2^6)·0,847909 = 0,847719; turbină 9,81·1,8·4,985·0,847719 = 74,62 kW;
+    // rețea ·0,9405 = 70,18 kW; ·744/1000 = 52,214 MWh
     const a = annual(setup({ autoCleaner: true }));
     expect(a.monthsMWh).toHaveLength(12);
-    near(a.monthsMWh[0]!, 58.85);
+    near(a.monthsMWh[0]!, 52.214);
   });
 
-  it("ianuarie fără curățitor (clog mediu 0,5): ≈ 57,26 MWh", () => {
-    // net = 5 - 0,5·0,06·5 = 4,85; P = 9,81·1,8·4,85·0,89865 = 76,96 kW; ·744/1000
+  it("ianuarie fără curățitor (clog mediu 0,5): ≈ 50,800 MWh", () => {
+    // net = 5 - 0,5·0,06·5 = 4,85; turbină 9,81·1,8·4,85·0,847719 = 72,60 kW; ·0,9405 = 68,28 kW; ·744/1000
     const a = annual(setup());
-    near(a.monthsMWh[0]!, 57.26);
+    near(a.monthsMWh[0]!, 50.8);
   });
 
   it("totalMWh = suma lunilor", () => {
@@ -284,8 +388,10 @@ describe("powerCurve", () => {
     for (const p of c) expect(p.powerKW).toBeCloseTo(operate(s, p.flow, 0.3).powerKW, 9);
   });
 
-  it("large Kaplan la 12 m3/s: 9,81·3,5·5·0,9 = 154,51 kW", () => {
+  it("large Kaplan la 12 m3/s: 9,81·3,5·5·0,851233·0,9405 = 137,44 kW", () => {
+    // Qd=3,5: d=0,83195, 1-0,789·d^-0,2=0,181425, ed=0,16696·0,181425=0,03029, ep=0,905-0,07196+0,03029-0,008=0,85533;
+    // Q=Qd: factor 0,995199 -> eta=0,851233; turbină 146,135 kW; ·0,9405 = 137,44
     const c = powerCurve(s, 0, 12, 12);
-    near(c[c.length - 1]!.powerKW, 154.51);
+    near(c[c.length - 1]!.powerKW, 137.44);
   });
 });

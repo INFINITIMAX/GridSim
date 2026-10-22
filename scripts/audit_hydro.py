@@ -1,9 +1,9 @@
 """Independent audit of the GridSim 2D hydro model.
 
-Part 1: re-implements the rules of docs/handoff/S3-coder.md from scratch (no code shared with the game)
+Part 1: re-implements the rules of docs/handoff/S3-coder.md and S4-coder.md from scratch (no code shared with the game)
         and compares every case dumped from the game's TypeScript (scripts/dump-hydro.mjs).
-Part 2: compares the game's turbine efficiency curves with RETScreen's published formulae
-        (RETScreen Small Hydro Project Analysis, Appendix A, pages HYDRO.37-40; data/refs/retscreen-hydro.pdf).
+        Turbine efficiency: RETScreen Small Hydro Project Analysis, Appendix A, pages HYDRO.37-40 (data/refs/retscreen-hydro.pdf).
+Part 2: prints the resulting efficiency curves, for reading.
 
 Run: node scripts/dump-hydro.mjs data/refs/hydro-dump.json && python -I scripts/audit_hydro.py data/refs/hydro-dump.json
 """
@@ -13,18 +13,19 @@ import math
 import sys
 
 G = 9.81
-TECH = {  # peak efficiency, min load, head range, part-load curve
-    "kaplan": (0.90, 0.20, 2, 20, lambda L: 1 - 0.15 * (1 - L) ** 2),
-    "francis": (0.92, 0.40, 10, 300, lambda L: 1 - (L - 0.85) ** 2),
-    "crossflow": (0.80, 0.15, 2, 100, lambda L: 1 - 0.08 * (1 - L) ** 2),
+TECH = {  # min load, head range
+    "kaplan": (0.20, 2, 20),
+    "francis": (0.40, 10, 300),
+    "crossflow": (0.15, 2, 100),
 }
+GEN = 0.95 * (1 - 0.01)  # generator efficiency x (1 - transformer loss)
 SIZE = {"small": 1.0, "medium": 2.0, "large": 3.5}
 MONTHLY = [1.8, 2.2, 4.2, 6.5, 6.0, 4.0, 2.4, 1.4, 1.2, 1.6, 2.2, 2.0]
 DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
 
 def operate(s, river, clog):
-    peak, min_load, hmin, hmax, part = TECH[s["technology"]]
+    min_load, hmin, hmax = TECH[s["technology"]]
     qd = SIZE[s["size"]]
     count = min(max(round(s["count"]), 1), 4)
     clog = min(max(clog, 0), 1)
@@ -34,20 +35,22 @@ def operate(s, river, clog):
     flow = max(river, 0)
     eco = min(0.3, flow) if s["fishLadder"] else 0
     avail = flow - eco
-    installed = count * G * qd * (gross - canal_loss) * peak * part(1)
+    rated = gross - canal_loss
+    eff = lambda q: max(ret_eff(s["technology"], rated, qd, q), 0)
+    installed = count * G * qd * rated * eff(qd) * GEN
     qmin = min_load * qd
     max_run = min(count, math.floor(avail / qmin + 1e-9))
     stop = "flood" if (not s["gates"] and flow > 7) else "head" if not (hmin <= gross <= hmax) else "low-flow" if max_run == 0 else None
     if stop:
-        return dict(running=0, usedFlow=0, spilledFlow=avail, ecoFlow=eco, powerKW=0, installedKW=installed, netHead=net, stopReason=stop)
+        return dict(running=0, usedFlow=0, spilledFlow=avail, ecoFlow=eco, powerKW=0, turbineKW=0, installedKW=installed, netHead=net, stopReason=stop)
     best = None
     for k in range(1, max_run + 1):
         per = min(qd, avail / k)
-        p = G * k * per * net * peak * part(per / qd)
-        if best is None or p > best[1] + 1e-9:
-            best = (k, p, k * per)
-    k, p, used = best
-    return dict(running=k, usedFlow=used, spilledFlow=avail - used, ecoFlow=eco, powerKW=p, installedKW=installed, netHead=net, stopReason=None)
+        t = G * k * per * net * eff(per)
+        if best is None or t * GEN > best[1] + 1e-9:
+            best = (k, t * GEN, k * per, t)
+    k, p, used, t = best
+    return dict(running=k, usedFlow=used, spilledFlow=avail - used, ecoFlow=eco, powerKW=p, turbineKW=t, installedKW=installed, netHead=net, stopReason=None)
 
 
 def part1(dump):
@@ -56,7 +59,7 @@ def part1(dump):
     for c in dump["cases"]:
         mine = operate(c["setup"], c["flow"], c["clog"])
         game = c["op"]
-        for key in ("running", "usedFlow", "spilledFlow", "ecoFlow", "powerKW", "installedKW", "netHead"):
+        for key in ("running", "usedFlow", "spilledFlow", "ecoFlow", "powerKW", "turbineKW", "installedKW", "netHead"):
             a, b = mine[key], game[key]
             err = abs(a - b) / max(abs(a), 1e-6) if abs(a) > 1e-9 else abs(b)
             worst = max(worst, err)
@@ -109,6 +112,8 @@ def ret_eff(kind, h, qd, q):
         qp = 0.75 * qd
         return (1 - 3.5 * ((qp - q) / qp) ** 6) * ep
     qp = 0.65 * qd * nq ** 0.05
+    if ep <= 0 or 3.94 - 0.0195 * nq <= 0:
+        return 0
     if q <= qp:
         return (1 - 1.25 * ((qp - q) / qp) ** (3.94 - 0.0195 * nq)) * ep
     er = (1 - 0.0072 * nq ** 0.4) * ep
@@ -116,16 +121,12 @@ def ret_eff(kind, h, qd, q):
 
 
 def part2():
-    print("\nPART 2  game efficiency vs RETScreen formulae (medium turbine, design flow 2 m3/s)")
+    print("\nPART 2  turbine efficiency (medium turbine, design flow 2 m3/s), RETScreen Appendix A")
     loads = [0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.75, 0.85, 1.0]
-    for kind, heads in (("kaplan", [5, 8.6, 11.6]), ("francis", [11.6]), ("crossflow", [5, 11.6])):
-        peak, min_load, *_rest, part = TECH[kind]
+    print("  " + " " * 24 + "load:  " + "  ".join(f"{L:4.2f}" for L in loads))
+    for kind, heads in (("kaplan", [3, 5, 8.6, 11.6]), ("francis", [11.6]), ("crossflow", [5])):
         for h in heads:
-            print(f"  {kind:9s} head {h:5.1f} m   load:  " + "  ".join(f"{L:4.2f}" for L in loads))
-            game = [peak * part(L) if L >= min_load else float("nan") for L in loads]
-            ret = [max(ret_eff(kind, h, 2.0, L * 2.0), 0) for L in loads]
-            print("     game (runs from %.0f%%)       " % (min_load * 100) + "  ".join("  -  " if math.isnan(v) else f"{v:4.2f}" for v in game))
-            print("     RETScreen                  " + "  ".join(f"{v:4.2f}" for v in ret))
+            print(f"  {kind:9s} head {h:5.1f} m         " + "  ".join(f"{max(ret_eff(kind, h, 2.0, L * 2.0), 0):4.2f}" for L in loads))
 
 
 if __name__ == "__main__":

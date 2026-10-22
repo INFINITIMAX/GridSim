@@ -13,7 +13,9 @@ import {
   TECHNOLOGIES,
   annual,
   operate,
+  peakEfficiency,
   powerCurve,
+  sizeById,
   technologyById,
   type DamHeight,
   type Operation,
@@ -159,7 +161,7 @@ export function createPanel(root: HTMLElement, hooks: PanelHooks): Panel {
         ${TECHNOLOGIES.map(
           (t) => `<button type="button" class="up-option" role="radio" data-tech="${t.id}">
             <span class="up-option-name">${t.name}</span>
-            <span class="up-option-eff">${fmt(t.peakEfficiency * 100)}% peak</span>
+            <span class="up-option-eff"></span>
             <span class="up-option-desc">${t.description}</span>
             <span class="up-option-meta">${t.minHead} to ${t.maxHead} m of head</span>
             <span class="up-option-reason" hidden></span>
@@ -356,6 +358,9 @@ export function createPanel(root: HTMLElement, hooks: PanelHooks): Panel {
       const reason = b.querySelector<HTMLElement>(".up-option-reason")!;
       b.setAttribute("aria-checked", String(tech.id === setup.technology));
       b.disabled = tooLow || tooHigh;
+      b.querySelector<HTMLElement>(".up-option-eff")!.textContent = b.disabled
+        ? "–"
+        : `${fmt(peakEfficiency(tech, op.grossHead - op.canalLossM, sizeById(setup.size).designFlow) * 100)}% peak here`;
       reason.hidden = !b.disabled;
       reason.textContent = tooLow
         ? `Needs at least ${tech.minHead} m of head. This site has ${fmt(op.grossHead)} m.`
