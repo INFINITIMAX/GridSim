@@ -13,7 +13,14 @@ const COLS = 32, ROWS = 20, T = 10, GROUND = 8;
 const RIVER_W = 2;
 const RIVER_PTS = [[-1, 6], [9, 6], [9, 10], [20, 10], [20, 13], [33, 13]];
 const DAM_AT = { col: 15, row: 10 };
-const W3 = (col, row, z = 0) => [row * T, (COLS - col) * T, z];
+// ?zoom=plant frames the powerhouse and the dam, as the game will after a click on the plant. The engine frames the
+// box from the origin to `size`, so when zoomed the whole map is shifted to put the plant in that box.
+const ZOOM = new URLSearchParams(location.search).get('zoom') === 'plant';
+const ZOOM_BOX = 70;
+const RAW = (col, row) => [row * T, (COLS - col) * T];
+const PLANT_RAW = RAW(DAM_AT.col + 1.2, DAM_AT.row - 2.2);
+const SHIFT = ZOOM ? [PLANT_RAW[0] - ZOOM_BOX / 2, PLANT_RAW[1] - ZOOM_BOX / 2] : [0, 0];
+const W3 = (col, row, z = 0) => { const [x, y] = RAW(col, row); return [x - SHIFT[0], y - SHIFT[1], z]; };
 
 /* ---------- materials ---------- */
 const GRASS = { l: '#b3d189', m: '#97b96e', d: '#5f7d45' }, GRASS2 = { l: '#a8c87f', m: '#8dae65', d: '#58753f' };
@@ -46,9 +53,9 @@ const TREES = [];
 /* ---------- drawing ---------- */
 function ground() {
   let s = '';
-  const x1 = ROWS * T, y1 = COLS * T;
+  const x0 = -SHIFT[0], y0 = -SHIFT[1], x1 = ROWS * T - SHIFT[0], y1 = COLS * T - SHIFT[1];
   // soil sides of the block, then the grass top as tiles (two greens in a checker), then the river cut into it
-  s += box(0, 0, 0, x1, y1, GROUND, SOIL, tone, 1.2);
+  s += box(x0, y0, 0, x1, y1, GROUND, SOIL, tone, 1.2);
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
     if (isWater(c, r)) continue;
     const m = (r + c) % 2 ? GRASS : GRASS2;
@@ -81,7 +88,7 @@ function ground() {
     s += `<path d="${pd([p0, p1], false)}" stroke="#e8f4fc" stroke-width="1.4" stroke-linecap="round" fill="none"/>`;
   }
   // the block's outline
-  s += hullInk([[0, 0, 0], [x1, 0, 0], [x1, y1, 0], [0, y1, 0], [0, 0, GROUND], [x1, 0, GROUND], [x1, y1, GROUND], [0, y1, GROUND]], 2.4);
+  s += hullInk([[x0, y0, 0], [x1, y0, 0], [x1, y1, 0], [x0, y1, 0], [x0, y0, GROUND], [x1, y0, GROUND], [x1, y1, GROUND], [x0, y1, GROUND]], 2.4);
   return s;
 }
 
@@ -110,8 +117,8 @@ function plant() {
   parts.push({ box: [[X0, Y0, GROUND - 2], [X1, Y1, GROUND + 4]], svg: box(X0, Y0, GROUND - 2, X1, Y1, GROUND + 4, CONCRETE, tone, 1.4) });
   // water held behind the dam stands a little higher: a lighter strip upstream
   const [hx0, hy0] = W3(DAM_AT.col + 1.6, DAM_AT.row - 1.4), [hx1, hy1] = W3(DAM_AT.col + 4.4, DAM_AT.row + 1.4);
-  // powerhouse: walls, a pitched roof, a door and windows
-  const [px0, py0] = W3(DAM_AT.col - 0.4, DAM_AT.row - 3.4), [px1, py1] = W3(DAM_AT.col - 2.4, DAM_AT.row - 1.6);
+  // powerhouse: on the bank beside the river, just downstream of the dam
+  const [px0, py0] = W3(DAM_AT.col + 0.6, DAM_AT.row - 3.4), [px1, py1] = W3(DAM_AT.col + 2.6, DAM_AT.row - 1.6);
   const PX0 = Math.min(px0, px1), PX1 = Math.max(px0, px1), PY0 = Math.min(py0, py1), PY1 = Math.max(py0, py1), PH = GROUND + 11;
   let h = castShadow([[PX0, PY0, GROUND], [PX1, PY0, GROUND], [PX1, PY1, GROUND], [PX0, PY1, GROUND], [PX0, PY0, PH + 6], [PX1, PY1, PH + 6]], GROUND);
   h += box(PX0, PY0, GROUND, PX1, PY1, PH, WALLS, tone, 1.6);
@@ -129,17 +136,64 @@ function plant() {
   if (vis([1, 0, 0])) h += shape([[PX1, PY0 + 4, GROUND], [PX1, PY0 + 9, GROUND], [PX1, PY0 + 9, GROUND + 7], [PX1, PY0 + 4, GROUND + 7]], DARK.m, 1);
   if (vis([1, 0, 0])) for (const y of [PY0 + 12, PY1 - 4]) h += shape([[PX1, y - 2.2, GROUND + 4], [PX1, y + 2.2, GROUND + 4], [PX1, y + 2.2, GROUND + 8], [PX1, y - 2.2, GROUND + 8]], '#cfe9f0', .9);
   parts.push({ box: [[PX0, PY0, GROUND], [PX1, PY1, PH + 6]], svg: h });
+
+  // penstock: from an intake on the bank just upstream of the dam, along the bank, into the powerhouse's river side
+  const PIPE_Z = GROUND + 2.4, PIPE_R = 1.6, PIPE_X = X0 - 3;
+  const pA = [PIPE_X, Y1 + 4, PIPE_Z], pB = [PIPE_X, (PY0 + PY1) / 2, PIPE_Z], pC = [PX1, (PY0 + PY1) / 2, PIPE_Z];
+  parts.push({ box: [[PIPE_X - 2, pB[1], GROUND], [PIPE_X + 2, pA[1], PIPE_Z + 2]], svg: rod(pA, pB, PIPE_R, METAL, tone, 1.2) + cyl(pA[0], pA[1], GROUND, PIPE_Z + 3, 2.4, CONCRETE, tone, 1.2, 16) });
+  parts.push({ box: [[PX1, pC[1] - 2, GROUND], [PIPE_X, pC[1] + 2, PIPE_Z + 2]], svg: rod(pB, pC, PIPE_R, METAL, tone, 1.2) });
+  // saddles under the run
+  for (const y of [pA[1] - 6, pB[1] + 4]) parts.push({ box: [[PIPE_X - 1.4, y - 0.8, GROUND], [PIPE_X + 1.4, y + 0.8, PIPE_Z - PIPE_R]], svg: box(PIPE_X - 1.4, y - 0.8, GROUND, PIPE_X + 1.4, y + 0.8, PIPE_Z - PIPE_R, CONCRETE, tone, .9) });
+
+  // transformer and a pole on the landward side of the powerhouse, wires up to the pole
+  const TX0 = PX0 - 9, TY0 = PY0 + 3;
+  let tr = castShadow([[TX0, TY0, GROUND], [TX0 + 6, TY0 + 7, GROUND], [TX0 + 3, TY0 + 3, GROUND + 9]], GROUND);
+  tr += box(TX0 - 1, TY0 - 1, GROUND, TX0 + 7, TY0 + 8, GROUND + 1, CONCRETE, tone, .9);
+  tr += box(TX0, TY0, GROUND + 1, TX0 + 6, TY0 + 7, GROUND + 7, METAL, tone, 1.3);
+  for (const y of [TY0 + 1.5, TY0 + 3.5, TY0 + 5.5]) tr += cyl(TX0 + 3, y, GROUND + 7, GROUND + 9.5, 0.5, CERAMIC, toneI, .8, 10);
+  parts.push({ box: [[TX0 - 1, TY0 - 1, GROUND], [TX0 + 7, TY0 + 8, GROUND + 10]], svg: tr });
+  const POLE = [TX0 - 4, TY0 - 8];
+  let po = castShadow([[POLE[0] - 1, POLE[1] - 1, GROUND], [POLE[0] + 1, POLE[1] + 1, GROUND], [POLE[0], POLE[1], GROUND + 24]], GROUND);
+  po += cyl(POLE[0], POLE[1], GROUND, GROUND + 24, 0.8, BARK, tone, 1, 10);
+  po += box(POLE[0] - 0.6, POLE[1] - 5, GROUND + 21, POLE[0] + 0.6, POLE[1] + 5, GROUND + 22.2, BARK, tone, .9);
+  parts.push({ box: [[POLE[0] - 1, POLE[1] - 5, GROUND], [POLE[0] + 1, POLE[1] + 5, GROUND + 24]], svg: po });
+  const wires = [[TY0 + 1.5, -4], [TY0 + 3.5, 0], [TY0 + 5.5, 4]].map(([y, dy]) => {
+    const a = [TX0 + 3, y, GROUND + 9.5], b = [POLE[0], POLE[1] + dy, GROUND + 22.2];
+    const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2 - 1.5];
+    return `<path d="${pd([a, mid, b], false)}" fill="none" stroke="${INK}" stroke-width=".7"/>`;
+  }).join('');
+  parts.push({ box: [[POLE[0], POLE[1] - 5, GROUND + 9], [TX0 + 3, TY0 + 6, GROUND + 22.5]], svg: wires });
   return parts;
+}
+
+/* Water details that lie on the river: the lake behind the dam stands higher, foam below the spill, the tailrace. */
+function waterDetails() {
+  let s = '';
+  // the lake: water tiles upstream of the dam, a little higher and darker
+  for (let c = DAM_AT.col - 4; c < DAM_AT.col; c++) for (let r = DAM_AT.row - 1; r <= DAM_AT.row; r++) {
+    if (!isWater(c, r)) continue;
+    s += face(pd([W3(c, r, GROUND - 0.9), W3(c + 1, r, GROUND - 0.9), W3(c + 1, r + 1, GROUND - 0.9), W3(c, r + 1, GROUND - 0.9)]), WATER.m);
+  }
+  // tailrace: a short channel from the powerhouse's river side into the river
+  const [ax, ay] = W3(DAM_AT.col + 1.4, DAM_AT.row - 1.6), [bx, by] = W3(DAM_AT.col + 2.0, DAM_AT.row - 1);
+  s += face(pd([[ax, ay, GROUND - 1.5], [bx, ay, GROUND - 1.5], [bx, by, GROUND - 1.5], [ax, by, GROUND - 1.5]]), WATER.l);
+  s += ink(pd([[ax, ay, GROUND], [bx, ay, GROUND], [bx, by, GROUND], [ax, by, GROUND]]), .8);
+  // foam just below the dam
+  for (let i = 0; i < 7; i++) {
+    const [fx, fy] = W3(DAM_AT.col + 0.5 + (i % 3) * 0.25, DAM_AT.row - 0.8 + i * 0.25);
+    s += `<path d="${pd(on(PZ(GROUND - 1.8), ellUV(fx, fy, 1.4, 0.9, 10)))}" fill="#ffffff" stroke="${INK}" stroke-width=".5"/>`;
+  }
+  return s;
 }
 
 function scene(st) {
   const parts = [...TREES.map(tree), ...plant()];
-  return ground() + byDepth(parts);
+  return ground() + waterDetails() + byDepth(parts);
 }
 
 const ui = mountFigure({
-  fig: '01', turn: 'full', title: 'GridSim map', hint: 'drag to turn the map',
-  size: [ROWS * T, COLS * T, 30], palette: 'mint',
+  fig: '01', turn: 'full', title: ZOOM ? 'Micro hydro' : 'GridSim map', hint: 'drag to turn the map',
+  size: ZOOM ? [ZOOM_BOX, ZOOM_BOX, 34] : [ROWS * T, COLS * T, 30], palette: 'mint',
   state: {},
   scene,
   readout: () => 'river, dam and powerhouse',
