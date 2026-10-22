@@ -71,6 +71,10 @@ body {
   opacity: 0.55;
 }
 
+.flow.tail .iso-line[data-flow] {
+  animation-duration: var(--tail-dur, 2s);
+}
+
 @keyframes flow {
   to {
     stroke-dashoffset: -16;

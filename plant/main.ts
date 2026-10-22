@@ -50,7 +50,19 @@ function draw(state: PanelState): void {
   const level = Math.round(Math.min(1, op.spilledFlow / FIGURE.spillMax) * FIGURE.spillLevels);
   svg.querySelector('[data-live="spill"]')?.setAttribute("d", spills[level] ?? spills[0]!);
   stage.style.setProperty("--flow-dur", `${(FLOW_DASH / (FLOW_BASE + riverFlow)).toFixed(2)}s`);
-  readout.textContent = `dam ${setup.damHeight} m · river ${riverFlow.toFixed(1)} m³/s · over the dam ${op.spilledFlow.toFixed(1)} m³/s`;
+  // The tailrace carries only what went through the turbines; with none, its lines stop.
+  stage.style.setProperty("--tail-dur", op.usedFlow > 0.01 ? `${(FLOW_DASH / (FLOW_BASE + op.usedFlow)).toFixed(2)}s` : "0s");
+  readout.textContent = `head ${op.netHead.toFixed(1)} m · turbine ${op.usedFlow.toFixed(1)} m³/s · ${op.powerKW.toFixed(0)} kW`;
+}
+
+/** The generator turns at a steady synchronous speed while it runs; shown slowed down, in prebuilt frames. */
+const MARKER_TURNS_PER_S = 0.4;
+let turn = 0;
+function spin(dt: number): void {
+  if (panel.state.op.running === 0) return;
+  turn = (turn + dt * MARKER_TURNS_PER_S) % 1;
+  const frame = FIGURE.markers[Math.floor(turn * FIGURE.markers.length)] ?? FIGURE.markers[0]!;
+  svg.querySelector('[data-live="marker"]')?.setAttribute("d", frame);
 }
 
 const panel = createPanel(document.querySelector<HTMLElement>("#upgrade")!, {
@@ -70,6 +82,7 @@ function tick(now: number): void {
   last = now;
   clog = stepClog(clog, panel.state.riverFlow, panel.state.setup.autoCleaner, dt);
   panel.setClog(clog);
+  spin(dt);
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
