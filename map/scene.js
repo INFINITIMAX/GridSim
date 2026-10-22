@@ -124,24 +124,35 @@ function gmTree(t) {
   return { at: [x, y, z0 + t.h / 2], box: [[x - 5, y - 5, z0], [x + 5, y + 5, z0 + t.h]], svg: s };
 }
 
-/* ---------- the plant: dam, lake, foam, powerhouse, penstock, tailrace, transformer, pole ---------- */
+/* ---------- the plant: a dam across the river and the powerhouse beside it, as in the 2D game ----------
+   On the map only what you would see from outside. A click turns the powerhouse see-through (map/style.css fades the
+   shell and shows the inside): the turbine and generator unit on its floor. */
 const D = GM.dam;
-const PLANT_FOCUS = W3(D.col + 0.8, D.row - 1.8, GROUND);
+const PLANT_FOCUS = W3(D.col + 0.8, D.row - 2.4, GROUND);
 
 function gmWaterDetails() {
+  // the lake: water held behind the dam stands a little higher (darker), for a few tiles upstream
   let s = '';
   for (let c = D.col - 4; c < D.col; c++) for (let r = D.row - 1; r <= D.row; r++) {
     if (!isWater(c, r)) continue;
     s += face(pd([W3(c, r, GROUND - 0.9), W3(c + 1, r, GROUND - 0.9), W3(c + 1, r + 1, GROUND - 0.9), W3(c, r + 1, GROUND - 0.9)]), GM_WATER.m);
   }
-  const [ax, ay] = W3(D.col + 1.4, D.row - 1.6), [bx, by] = W3(D.col + 2.0, D.row - 1);
-  s += face(pd([[ax, ay, GROUND - 1.5], [bx, ay, GROUND - 1.5], [bx, by, GROUND - 1.5], [ax, by, GROUND - 1.5]]), GM_WATER.l);
-  s += ink(pd([[ax, ay, GROUND], [bx, ay, GROUND], [bx, by, GROUND], [ax, by, GROUND]]), .8);
-  for (let i = 0; i < 7; i++) {
-    const [fx, fy] = W3(D.col + 0.5 + (i % 3) * 0.25, D.row - 0.8 + i * 0.25);
-    s += `<path d="${pd(on(PZ(GROUND - 1.8), ellUV(fx, fy, 1.4, 0.9, 10)))}" fill="#ffffff" stroke="${INK}" stroke-width=".5"/>`;
-  }
   return s;
+}
+
+function gmInside(PX0, PY0, PX1, PY1) {
+  // the floor, then one vertical turbine and generator unit, and a control cabinet against the back wall
+  const cx = (PX0 + PX1) / 2, cy = (PY0 + PY1) / 2 + 2, z = GROUND + 0.6;
+  const floor = box(PX0 + 0.6, PY0 + 0.6, GROUND, PX1 - 0.6, PY1 - 0.6, z, GM_CONCRETE, tone, .9);
+  const unit = cyl(cx, cy, z, z + 3, 4, PALS.cobalt, tone, 1.2, 18)          // turbine casing (the runner is inside)
+    + cyl(cx, cy, z + 3, z + 5, 1, METAL, tone, 1, 10)                        // shaft
+    + cyl(cx, cy, z + 5, z + 10, 3.4, PALS.mustard, tone, 1.3, 18)            // generator
+    + cyl(cx, cy, z + 10, z + 11, 2, METAL, tone, 1, 14);                     // its cap
+  const CAB = [PX0 + 1.5, PY0 + 1.5, PX0 + 4, PY0 + 6];                        // control cabinet in the back corner
+  return floor + byDepth([
+    { box: [[cx - 4, cy - 4, z], [cx + 4, cy + 4, z + 11]], svg: unit },
+    { box: [[CAB[0], CAB[1], z], [CAB[2], CAB[3], z + 7]], svg: box(CAB[0], CAB[1], z, CAB[2], CAB[3], z + 7, DARK, tone, 1) },
+  ]);
 }
 
 function gmPlant() {
@@ -150,9 +161,10 @@ function gmPlant() {
   const [X0, Y0, X1, Y1] = corners([D.col + 0.3, D.row - 1.4], [D.col - 0.3, D.row + 1.4]);
   parts.push({ box: [[X0, Y0, GROUND - 2], [X1, Y1, GROUND + 4]], svg: box(X0, Y0, GROUND - 2, X1, Y1, GROUND + 4, GM_CONCRETE, tone, 1.4) });
 
-  const [PX0, PY0, PX1, PY1] = corners([D.col + 0.6, D.row - 3.4], [D.col + 2.6, D.row - 1.6]), PH = GROUND + 11;
-  let h = castShadow([[PX0, PY0, GROUND], [PX1, PY0, GROUND], [PX1, PY1, GROUND], [PX0, PY1, GROUND], [PX0, PY0, PH + 6], [PX1, PY1, PH + 6]], GROUND);
-  h += box(PX0, PY0, GROUND, PX1, PY1, PH, GM_WALLS, tone, 1.6);
+  // the powerhouse stands on the bank against the dam's end, just downstream of it
+  const [PX0, PY0, PX1, PY1] = corners([D.col - 0.2, D.row - 3.8], [D.col + 2.0, D.row - 1.4]), PH = GROUND + 11;
+  const shadow = castShadow([[PX0, PY0, GROUND], [PX1, PY0, GROUND], [PX1, PY1, GROUND], [PX0, PY1, GROUND], [PX0, PY0, PH + 6], [PX1, PY1, PH + 6]], GROUND);
+  let h = box(PX0, PY0, GROUND, PX1, PY1, PH, GM_WALLS, tone, 1.6);
   const RX = (PX0 + PX1) / 2, ov = 1.2;
   const roofA = [[PX0 - ov, PY0 - ov, PH], [PX0 - ov, PY1 + ov, PH], [RX, PY1 + ov, PH + 6], [RX, PY0 - ov, PH + 6]];
   const roofB = [[RX, PY0 - ov, PH + 6], [RX, PY1 + ov, PH + 6], [PX1 + ov, PY1 + ov, PH], [PX1 + ov, PY0 - ov, PH]];
@@ -166,13 +178,8 @@ function gmPlant() {
     h += shape([[PX1, PY0 + 4, GROUND], [PX1, PY0 + 9, GROUND], [PX1, PY0 + 9, GROUND + 7], [PX1, PY0 + 4, GROUND + 7]], DARK.m, 1);
     for (const y of [PY0 + 12, PY1 - 4]) h += shape([[PX1, y - 2.2, GROUND + 4], [PX1, y + 2.2, GROUND + 4], [PX1, y + 2.2, GROUND + 8], [PX1, y - 2.2, GROUND + 8]], '#cfe9f0', .9);
   }
-  parts.push({ box: [[PX0, PY0, GROUND], [PX1, PY1, PH + 6]], svg: h });
-
-  const PIPE_Z = GROUND + 2.4, PIPE_R = 1.6, PIPE_X = X0 - 3;
-  const pA = [PIPE_X, Y1 + 4, PIPE_Z], pB = [PIPE_X, (PY0 + PY1) / 2, PIPE_Z], pC = [PX1, (PY0 + PY1) / 2, PIPE_Z];
-  parts.push({ box: [[PIPE_X - 2.4, pB[1], GROUND], [PIPE_X + 2.4, pA[1] + 2.4, PIPE_Z + 3]], svg: rod(pA, pB, PIPE_R, METAL, tone, 1.2) + cyl(pA[0], pA[1], GROUND, PIPE_Z + 3, 2.4, GM_CONCRETE, tone, 1.2, 16) });
-  parts.push({ box: [[PX1, pC[1] - 2, GROUND], [PIPE_X, pC[1] + 2, PIPE_Z + 2]], svg: rod(pB, pC, PIPE_R, METAL, tone, 1.2) });
-  for (const y of [pA[1] - 6, pB[1] + 4]) parts.push({ box: [[PIPE_X - 1.4, y - 0.8, GROUND], [PIPE_X + 1.4, y + 0.8, PIPE_Z - PIPE_R]], svg: box(PIPE_X - 1.4, y - 0.8, GROUND, PIPE_X + 1.4, y + 0.8, PIPE_Z - PIPE_R, GM_CONCRETE, tone, .9) });
+  // shell (walls, roof, door, windows) and inside: the inside is drawn over the shell and only shows when see-through
+  parts.push({ box: [[PX0, PY0, GROUND], [PX1, PY1, PH + 6]], svg: shadow + `<g class="pw-shell">${h}</g><g class="pw-inside">${gmInside(PX0, PY0, PX1, PY1)}</g>` });
 
   // the whole plant is one clickable target
   return parts.map(p => ({ ...p, svg: act('plant', p.svg) }));
@@ -240,6 +247,8 @@ window.GridMap = {
   /** Ease the camera to the plant (true) or back to the whole map (false), like the 2D game. */
   focus(on, panelPx) {
     gmPanelPx = panelPx;
+    // On the plant the powerhouse turns see-through (a CSS fade on the shell and the inside, map/style.css).
+    document.getElementById('fig').classList.toggle('xr', on);
     // Zooming only moves the camera's frame (the viewBox): nothing is redrawn, so it stays smooth.
     const from = gmZoom, to = on ? 1 : 0, ms = GM.zoomMs, start = performance.now(), id = ++gmZoomRun;
     const step = now => {

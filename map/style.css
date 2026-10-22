@@ -33,6 +33,25 @@ body > .stage {
   vector-effect: non-scaling-stroke;
 }
 
+/* See-through: after a click on the plant the powerhouse's walls and roof fade and its inside shows. */
+.pw-inside {
+  opacity: 0;
+  transition: opacity 0.6s ease-out;
+  pointer-events: none;
+}
+
+.pw-shell {
+  transition: opacity 0.6s ease-out;
+}
+
+#fig.xr .pw-inside {
+  opacity: 1;
+}
+
+#fig.xr .pw-shell {
+  opacity: 0.22;
+}
+
 .upgrade {
   z-index: 5;
   font-family: var(--font);
