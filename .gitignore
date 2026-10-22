@@ -10,3 +10,7 @@ playwright-report/
 *.log
 shots/
 data/refs/
+
+# Blender files are rebuilt from art/blender/*.py
+art/blender/*.blend
+art/blender/*.blend1
