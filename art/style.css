@@ -1,0 +1,132 @@
+/* GridSim art: a still of the micro hydro plant for X. Colours come from the palette set in main.ts. */
+
+:root {
+  --bg: #e6eae8;
+  --line: #cfd6d3;
+  --ink: #1d2329;
+  --muted: #59646c;
+  --card: #f4f6f5;
+  --accent: #e3a23b;
+  --sans: "Geist Variable", system-ui, sans-serif;
+  --mono: "Geist Mono Variable", ui-monospace, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+}
+
+#backdrop,
+#scene,
+#leaders,
+#labels {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#leaders,
+#labels {
+  pointer-events: none;
+}
+
+.title {
+  position: fixed;
+  top: 40px;
+  left: 48px;
+}
+
+.title h1 {
+  margin: 0;
+  font-size: 40px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.title p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.card {
+  position: absolute;
+  width: 210px;
+  padding: 12px 14px;
+  background: var(--card);
+  border: 1.5px solid var(--ink);
+  border-radius: 6px;
+}
+
+.card h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.card p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.card strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.leader {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+}
+
+.leader-dot {
+  fill: var(--accent);
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+
+.contour {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1.2;
+}
+
+.formula {
+  position: fixed;
+  left: 48px;
+  bottom: 40px;
+  padding: 10px 16px;
+  background: var(--card);
+  border: 1.5px solid var(--ink);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 15px;
+}
+
+.formula b {
+  color: var(--ink);
+  font-weight: 600;
+}
