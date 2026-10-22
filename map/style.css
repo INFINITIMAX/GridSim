@@ -27,6 +27,12 @@ body > .stage {
   margin: 0 !important;
 }
 
+/* Stroke widths are screen pixels, so zooming the camera never thickens the ink. */
+#art path,
+#art circle {
+  vector-effect: non-scaling-stroke;
+}
+
 .upgrade {
   z-index: 5;
   font-family: var(--font);

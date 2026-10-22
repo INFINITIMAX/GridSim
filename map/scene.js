@@ -15,7 +15,9 @@ const GM = {
       after the click shows that same stretch of land: (32 + 20) tiles across the iso diagonal, divided by 2.6. */
   zoom2d: { cols: 32, rows: 20, factor: 2.6, fit: 0.9 },
   zoomMs: 600,
-  trees: 90,
+  /** Ink weight relative to the Colorfigures default (1 = its own, heavier line). */
+  inkThin: 0.6,
+  trees: 70,
 };
 
 /* ---------- materials ---------- */
@@ -55,12 +57,21 @@ function gmGround() {
   const x1 = GM.rows * T, y1 = GM.cols * T, wz = GROUND - 2;
   s += box(0, 0, 0, x1, y1, GROUND, GM_SOIL, tone, 1.2);
   const quad = (c, r, z) => [W3(c, r, z), W3(c + 1, r, z), W3(c + 1, r + 1, z), W3(c, r + 1, z)];
+  // All tiles of one colour go in one path: three paths instead of 1,600 elements keep turning the map smooth.
+  const light = [], dark = [], water = [];
   for (let r = 0; r < GM.rows; r++) for (let c = 0; c < GM.cols; c++) {
-    if (isWater(c, r)) s += face(pd(quad(c, r, wz)), GM_WATER.l);
-    else s += face(pd(quad(c, r, GROUND)), ((r + c) % 2 ? GM_GRASS : GM_GRASS2).l);
+    if (isWater(c, r)) water.push(pd(quad(c, r, wz)));
+    else ((r + c) % 2 ? light : dark).push(pd(quad(c, r, GROUND)));
   }
+  // The whole top in the darker green first, then only the lighter tiles and the water over it, with no seam strokes:
+  // nothing can show between tiles, and there is half as much to paint.
+  s += fill(pd([W3(0, 0, GROUND), W3(GM.cols, 0, GROUND), W3(GM.cols, GM.rows, GROUND), W3(0, GM.rows, GROUND)]), GM_GRASS2.l);
+  s += fill(light.join(''), GM_GRASS.l) + fill(water.join(''), GM_WATER.l);
+  void dark;
   // Bank walls: on every edge between a water tile and a grass tile, a wall from the water up to the grass,
   // drawn when its face (pointing into the channel) is toward the viewer.
+  // Walls of one tone share one path, and all their outlines one more path.
+  const walls = new Map(), wallInk = [];
   for (let r = 0; r < GM.rows; r++) for (let c = 0; c < GM.cols; c++) {
     if (!isWater(c, r)) continue;
     // each neighbour: the shared edge (two corners of this tile) and the wall's normal into the water tile
@@ -75,29 +86,38 @@ function gmGround() {
       const pa = W3(a[0], a[1]), pb = W3(b[0], b[1]), mid = W3(c + 0.5, r + 0.5), em = [(pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2];
       const n = norm([mid[0] - em[0], mid[1] - em[1], 0]);
       if (!vis(n)) continue;
-      s += shape([[pa[0], pa[1], wz], [pb[0], pb[1], wz], [pb[0], pb[1], GROUND], [pa[0], pa[1], GROUND]], tone(n, GM_SOIL), .6);
+      const d = pd([[pa[0], pa[1], wz], [pb[0], pb[1], wz], [pb[0], pb[1], GROUND], [pa[0], pa[1], GROUND]]), colour = tone(n, GM_SOIL);
+      walls.set(colour, (walls.get(colour) || '') + d);
+      wallInk.push(d);
     }
   }
-  // flow streaks
+  for (const [colour, d] of walls) s += fill(d, colour);
+  s += ink(wallInk.join(''), .6);
+  // flow streaks, all in one path
+  const streaks = [];
   for (let i = 0; i < 40; i++) {
     const [a, b] = gmSegs[i % gmSegs.length], k = (i * 0.37) % 1;
     const along = [b[0] - a[0], b[1] - a[1]], L = Math.hypot(...along), off = ((i * 0.61) % 1 - 0.5) * 1.2;
     const x = a[0] + along[0] * k - along[1] / L * off, y = a[1] + along[1] * k + along[0] / L * off;
     if (x < 0 || y < 0 || x > GM.cols - 1 || y > GM.rows - 1) continue;
-    s += `<path d="${pd([W3(x, y, wz + 0.1), W3(x + along[0] / L * 0.8, y + along[1] / L * 0.8, wz + 0.1)], false)}" stroke="#e8f4fc" stroke-width="1.4" stroke-linecap="round" fill="none"/>`;
+    streaks.push(pd([W3(x, y, wz + 0.1), W3(x + along[0] / L * 0.8, y + along[1] / L * 0.8, wz + 0.1)], false));
   }
+  s += `<path d="${streaks.join('')}" stroke="#e8f4fc" stroke-width="1.4" stroke-linecap="round" fill="none"/>`;
+  // every tree's cast shadow in one path, on the ground under all the trees
+  const shadows = GM_TREES.map(t => { const [x, y] = W3(t.c, t.r); return (castShadow([[x - 3, y - 3, GROUND], [x + 3, y + 3, GROUND], [x, y, GROUND + t.h]], GROUND).match(/d="([^"]+)"/) || [])[1] || ''; });
+  s += fill(shadows.join(''), SHADOW);
   s += hullInk([[0, 0, 0], [x1, 0, 0], [x1, y1, 0], [0, y1, 0], [0, 0, GROUND], [x1, 0, GROUND], [x1, y1, GROUND], [0, y1, GROUND]], 2.4);
   return s;
 }
 
 function gmTree(t) {
   const [x, y] = W3(t.c, t.r), z0 = GROUND, trunkTop = z0 + t.h * 0.35, leaf = t.c > GM.cols / 2 ? GM_LEAF : GM_LEAF2;
-  let s = castShadow([[x - 3, y - 3, z0], [x + 3, y + 3, z0], [x, y, z0 + t.h]], z0);
-  s += cyl(x, y, z0, trunkTop + 1, 0.9, GM_BARK, tone, .9, 10);
-  if (t.kind === 'pine') s += rod([x, y, trunkTop], [x, y, z0 + t.h], 4.2, leaf, tone, 1.4, 0.3, 14);
+  // Light geometry (few facets): ninety of these are redrawn on every frame while the map turns.
+  let s = cyl(x, y, z0, trunkTop + 1, 0.9, GM_BARK, tone, .9, 6);
+  if (t.kind === 'pine') s += rod([x, y, trunkTop], [x, y, z0 + t.h], 4.2, leaf, tone, 1.4, 0.3, 9);
   else {
     const radii = [3.6, 5, 4.4, 1.6];
-    const rings = [0, 0.35, 0.75, 1].map((f, i) => on(PZ(trunkTop + f * t.h * 0.65), ellUV(x, y, radii[i], radii[i], 16)));
+    const rings = [0, 0.35, 0.75, 1].map((f, i) => on(PZ(trunkTop + f * t.h * 0.65), ellUV(x, y, radii[i], radii[i], 10)));
     for (let i = 0; i < 3; i++) s += loft(rings[i], rings[i + 1], n => tone(n, leaf));
     s += fill(pd(rings[3]), leaf.l) + hullInk(rings.flat(), 1.4);
   }
@@ -154,22 +174,6 @@ function gmPlant() {
   parts.push({ box: [[PX1, pC[1] - 2, GROUND], [PIPE_X, pC[1] + 2, PIPE_Z + 2]], svg: rod(pB, pC, PIPE_R, METAL, tone, 1.2) });
   for (const y of [pA[1] - 6, pB[1] + 4]) parts.push({ box: [[PIPE_X - 1.4, y - 0.8, GROUND], [PIPE_X + 1.4, y + 0.8, PIPE_Z - PIPE_R]], svg: box(PIPE_X - 1.4, y - 0.8, GROUND, PIPE_X + 1.4, y + 0.8, PIPE_Z - PIPE_R, GM_CONCRETE, tone, .9) });
 
-  const TX0 = PX0 - 9, TY0 = PY0 + 3;
-  let tr = castShadow([[TX0, TY0, GROUND], [TX0 + 6, TY0 + 7, GROUND], [TX0 + 3, TY0 + 3, GROUND + 9]], GROUND);
-  tr += box(TX0 - 1, TY0 - 1, GROUND, TX0 + 7, TY0 + 8, GROUND + 1, GM_CONCRETE, tone, .9);
-  tr += box(TX0, TY0, GROUND + 1, TX0 + 6, TY0 + 7, GROUND + 7, METAL, tone, 1.3);
-  for (const y of [TY0 + 1.5, TY0 + 3.5, TY0 + 5.5]) tr += cyl(TX0 + 3, y, GROUND + 7, GROUND + 9.5, 0.5, CERAMIC, toneI, .8, 10);
-  parts.push({ box: [[TX0 - 1, TY0 - 1, GROUND], [TX0 + 7, TY0 + 8, GROUND + 10]], svg: tr });
-  const POLE = [TX0 - 4, TY0 - 8];
-  let po = castShadow([[POLE[0] - 1, POLE[1] - 1, GROUND], [POLE[0] + 1, POLE[1] + 1, GROUND], [POLE[0], POLE[1], GROUND + 24]], GROUND);
-  po += cyl(POLE[0], POLE[1], GROUND, GROUND + 24, 0.8, GM_BARK, tone, 1, 10);
-  po += box(POLE[0] - 0.6, POLE[1] - 5, GROUND + 21, POLE[0] + 0.6, POLE[1] + 5, GROUND + 22.2, GM_BARK, tone, .9);
-  parts.push({ box: [[POLE[0] - 1, POLE[1] - 5, GROUND], [POLE[0] + 1, POLE[1] + 5, GROUND + 24]], svg: po });
-  const wires = [[TY0 + 1.5, -4], [TY0 + 3.5, 0], [TY0 + 5.5, 4]].map(([y, dy]) => {
-    const a = [TX0 + 3, y, GROUND + 9.5], b = [POLE[0], POLE[1] + dy, GROUND + 22.2];
-    return `<path d="${pd([a, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2 - 1.5], b], false)}" fill="none" stroke="${INK}" stroke-width=".7"/>`;
-  }).join('');
-  parts.push({ box: [[POLE[0], POLE[1] - 5, GROUND + 9], [TX0 + 3, TY0 + 6, GROUND + 22.5]], svg: wires });
   // the whole plant is one clickable target
   return parts.map(p => ({ ...p, svg: act('plant', p.svg) }));
 }
@@ -178,6 +182,7 @@ function gmPlant() {
 let gmBase = null;      // the viewBox that frames the whole map, centred in the window
 let gmZoom = 0;         // 0 = whole map, 1 = on the plant
 let gmPanelPx = 0;      // screen width taken by the panel on the right, so the plant centres in what is left
+let gmZoomRun = 0;      // the latest zoom animation; an older one stops when a new one starts
 function gmFrame(svg) {
   // the map block at the default view, centred, at the window's own aspect ratio
   const rect = svg.getBoundingClientRect(), aspect = rect.width && rect.height ? rect.height / rect.width : 0.6;
@@ -199,8 +204,9 @@ function gmApplyView() {
   const cx0 = gmBase.x + gmBase.w / 2, cy0 = gmBase.y + gmBase.h / 2;
   const cx = cx0 + (fx + shift - cx0) * k, cy = cy0 + (fy - cy0) * k;
   svg.setAttribute('viewBox', `${(cx - w / 2).toFixed(1)} ${(cy - hgt / 2).toFixed(1)} ${w.toFixed(1)} ${hgt.toFixed(1)}`);
-  // keep the ink the same weight on screen at every zoom
-  INK_K = w / INK_REF_VB;
+  // Lines are drawn with vector-effect: non-scaling-stroke (map/style.css), so a stroke width is in screen pixels and
+  // stays the same at every zoom; INK_K sets that width from the window size, never from the zoom.
+  INK_K = GM.inkThin * (box.width || 1200) / INK_REF_VB;
 }
 
 function gmScene() {
@@ -219,9 +225,9 @@ window.GridMap = {
       buttons: [], credit: false,
       acts: { plant: () => hooks.onPlant() },
     });
-    // no hand-drawn wobble: the lines stay straight
-    const wob = document.getElementById('wob');
-    if (wob) wob.setAttribute('scale', '0');
+    // No hand-drawn filter at all: no wobble, and no paper grain recomputed on every frame while the map turns.
+    document.getElementById('art').removeAttribute('filter');
+    ui.render();
     // a click on the map away from the plant (a press and release without dragging)
     const svg = document.getElementById('fig');
     let down = null;
@@ -234,8 +240,15 @@ window.GridMap = {
   /** Ease the camera to the plant (true) or back to the whole map (false), like the 2D game. */
   focus(on, panelPx) {
     gmPanelPx = panelPx;
-    const from = gmZoom, to = on ? 1 : 0, ms = GM.zoomMs;
-    let t = 0;
-    this.ui.animate(dt => { t += dt * 1000; const p = Math.min(1, t / ms); gmZoom = from + (to - from) * (1 - (1 - p) ** 3); return p < 1; });
+    // Zooming only moves the camera's frame (the viewBox): nothing is redrawn, so it stays smooth.
+    const from = gmZoom, to = on ? 1 : 0, ms = GM.zoomMs, start = performance.now(), id = ++gmZoomRun;
+    const step = now => {
+      if (id !== gmZoomRun) return;
+      const p = Math.min(1, (now - start) / ms);
+      gmZoom = from + (to - from) * (1 - (1 - p) ** 3);
+      gmApplyView();
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
   },
 };
