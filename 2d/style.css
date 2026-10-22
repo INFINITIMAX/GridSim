@@ -224,6 +224,79 @@ canvas {
   margin-top: 10px;
 }
 
+.upgrade h3 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.upgrade .up-i {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font);
+  font-size: 12px;
+  font-style: italic;
+  line-height: 1;
+  text-transform: none;
+}
+
+.upgrade .up-i:hover,
+.upgrade .up-i[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.up-info {
+  margin-bottom: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 70%, var(--line));
+  font-size: 13px;
+}
+
+.upgrade .up-info p:last-child {
+  margin-bottom: 0;
+}
+
+.upgrade .up-info p + p {
+  margin-top: 8px;
+}
+
+.upgrade .up-info-simplified {
+  padding-left: 8px;
+  border-left: 2px solid var(--warn);
+  color: var(--muted);
+}
+
+.upgrade .up-calc-toggle {
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 13px;
+  text-decoration: underline;
+}
+
+.up-calc-rows {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 10px;
+  margin: 8px 0 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.up-calc-note {
+  font-size: 12px;
+}
+
 .up-sticky {
   position: sticky;
   top: -16px; /* the panel has 16px padding; stick flush to its edge so nothing scrolls above */

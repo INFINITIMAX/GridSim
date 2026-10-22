@@ -21,6 +21,7 @@ import {
   type Operation,
   type PlantSetup,
 } from "./hydro";
+import { SECTION_INFO, breakdown, type SectionId } from "./explain";
 
 // ---------- Everything you might want to change lives here ----------
 
@@ -32,12 +33,16 @@ const TEXT = {
   allThrough: "All the water goes through the turbines.",
   noPermit: "No permit. The law requires an ecological flow to bypass the dam.",
   capacityFactor: "Capacity factor: average output divided by installed power.",
+  calcNote: "9.81 = water density × gravity / 1000. Turbine, generator, transformer.",
+  stopped: "0 kW: the plant is stopped (see above)",
 };
 
 const START: { setup: PlantSetup; flow: number } = {
   setup: { technology: "kaplan", size: "medium", count: 1, damHeight: 5, canal: false, gates: false, fishLadder: true, autoCleaner: false },
   flow: RIVER_PRESETS.normal,
 };
+/** Non-breaking space: keeps "3.00 river" on one line. */
+const NBSP = String.fromCharCode(160);
 /** Water flowing less than this over the dam counts as nothing spilled, m³/s. */
 const SPILL_EPSILON = 0.01;
 const FLOW_STEP = 0.1;
@@ -141,9 +146,14 @@ export function createPanel(root: HTMLElement, hooks: PanelHooks): Panel {
       <p class="up-muted" id="up-installed"></p>
       <p id="up-running"></p>
       <p class="up-explain" id="up-explain"></p>
+      <button type="button" class="up-calc-toggle" id="up-calc-toggle" aria-expanded="false">How is this calculated?</button>
+      <div id="up-calc" hidden>
+        <div class="up-calc-rows" id="up-calc-rows"></div>
+        <p class="up-muted up-calc-note">${TEXT.calcNote}</p>
+      </div>
     </div>
     <section>
-      <h3>Dam</h3>
+      <h3 data-info="dam">Dam</h3>
       <div class="up-presets" role="group" aria-label="Dam height">
         ${DAM_HEIGHTS.map((h) => `<button type="button" data-dam="${h}" aria-pressed="false">${h} m</button>`).join("")}
       </div>
@@ -151,12 +161,12 @@ export function createPanel(root: HTMLElement, hooks: PanelHooks): Panel {
       <p class="up-muted" id="up-flooded"></p>
     </section>
     <section>
-      <h3>Diversion canal</h3>
+      <h3 data-info="canal">Diversion canal</h3>
       ${toggleHtml("canal")}
       <p class="up-muted">+${CANAL_EXTRA_HEAD} m head, ${fmt(CANAL_HEAD_LOSS, 1)} m lost to friction</p>
     </section>
     <section>
-      <h3>Turbines</h3>
+      <h3 data-info="turbines">Turbines</h3>
       <div class="up-options" role="radiogroup" aria-label="Turbine technology">
         ${TECHNOLOGIES.map(
           (t) => `<button type="button" class="up-option" role="radio" data-tech="${t.id}">
@@ -178,24 +188,24 @@ export function createPanel(root: HTMLElement, hooks: PanelHooks): Panel {
       </div>
     </section>
     <section>
-      <h3>Intake rack</h3>
+      <h3 data-info="rack">Intake rack</h3>
       <div class="up-bar"><span class="up-bar-clog" id="up-bar-clog"></span></div>
       <p class="up-muted up-gap" id="up-clog"></p>
       <button type="button" class="up-action" id="up-clean">Clean now</button>
       ${toggleHtml("autoCleaner")}
     </section>
     <section>
-      <h3>Spillway gates</h3>
+      <h3 data-info="gates">Spillway gates</h3>
       ${toggleHtml("gates")}
     </section>
     <section>
-      <h3>Fish ladder</h3>
+      <h3 data-info="fish">Fish ladder</h3>
       ${toggleHtml("fishLadder")}
       <p class="up-warn" id="up-eco-warn" hidden>${TEXT.noPermit}</p>
       <p class="up-muted" id="up-eco-ok">${fmt(ECO_FLOW, 1)} m³/s always bypasses the plant.</p>
     </section>
     <section>
-      <h3>River flow</h3>
+      <h3 data-info="river">River flow</h3>
       <div class="up-presets">
         ${(Object.keys(RIVER_PRESETS) as (keyof typeof RIVER_PRESETS)[])
           .map((k) => `<button type="button" data-preset="${k}">${k[0]!.toUpperCase()}${k.slice(1)}</button>`)
@@ -205,7 +215,7 @@ export function createPanel(root: HTMLElement, hooks: PanelHooks): Panel {
       <output id="up-flow-value" class="up-value"></output>
     </section>
     <section>
-      <h3>Water</h3>
+      <h3 data-info="water">Water</h3>
       <div class="up-bar">
         <span class="up-bar-used" id="up-bar-used"></span>
         <span class="up-bar-spill" id="up-bar-spill"></span>
@@ -218,14 +228,14 @@ export function createPanel(root: HTMLElement, hooks: PanelHooks): Panel {
       </div>
     </section>
     <section>
-      <h3>This year</h3>
+      <h3 data-info="year">This year</h3>
       <div class="up-power"><output id="up-year"></output><span>MWh</span></div>
       <p id="up-cf"></p>
       <p class="up-muted">${TEXT.capacityFactor}</p>
       <svg id="up-months" viewBox="0 0 ${MONTHS_CHART.width} ${MONTHS_CHART.height}" role="img" aria-label="Energy per month"></svg>
     </section>
     <section>
-      <h3>Power vs river flow</h3>
+      <h3 data-info="curve">Power vs river flow</h3>
       <svg id="up-chart" viewBox="0 0 ${CHART.width} ${CHART.height}" role="img" aria-label="Power versus river flow"></svg>
     </section>`;
 
@@ -239,6 +249,64 @@ export function createPanel(root: HTMLElement, hooks: PanelHooks): Panel {
   const slider = q<HTMLInputElement>("#up-flow");
   const chart = q<SVGSVGElement>("#up-chart");
   const monthsChart = q<SVGSVGElement>("#up-months");
+
+  // The "How is this calculated?" block. Built once, so open or closed survives every render.
+  const calcToggle = q<HTMLButtonElement>("#up-calc-toggle");
+  const calcBlock = q<HTMLElement>("#up-calc");
+  calcToggle.addEventListener("click", () => {
+    const open = calcBlock.hidden;
+    calcBlock.hidden = !open;
+    calcToggle.setAttribute("aria-expanded", String(open));
+  });
+
+  // One "i" button per section. The text box is built once, so each one keeps its state across renders.
+  for (const h3 of all<HTMLElement>("h3[data-info]")) {
+    const info = document.createElement("div");
+    info.className = "up-info";
+    info.hidden = true;
+    for (const text of SECTION_INFO[h3.dataset.info as SectionId].split("\n\n")) {
+      const p = document.createElement("p");
+      if (text.startsWith("Simplified:")) p.className = "up-info-simplified";
+      p.textContent = text;
+      info.append(p);
+    }
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "up-i";
+    button.textContent = "i";
+    button.setAttribute("aria-label", "What is this?");
+    button.setAttribute("aria-expanded", "false");
+    button.addEventListener("click", () => {
+      info.hidden = !info.hidden;
+      button.setAttribute("aria-expanded", String(!info.hidden));
+    });
+    h3.append(button);
+    h3.after(info);
+  }
+
+  /** The calculation as [label, terms] rows. A row only wraps between terms, never inside one. */
+  function calcRows(op: Operation): [string, string[]][] {
+    const b = breakdown(setup, riverFlow, op);
+    const water: [string, string[]] = ["Water", [`${fmt(b.water.river, 2)} river`, `− ${fmt(b.water.eco, 2)} fish`, `− ${fmt(b.water.spilled, 2)} over dam`, `= ${fmt(b.water.used, 2)} m³/s`]];
+    const head: [string, string[]] = ["Head", [`${fmt(b.head.gross, 2)} gross`, ...(setup.canal ? [`− ${fmt(b.head.canal, 2)} canal`] : []), `− ${fmt(b.head.rack, 2)} rack`, `= ${fmt(b.head.net, 2)} m`]];
+    if (b.stopReason) return [water, head, ["Power", [TEXT.stopped]]];
+    const t = b.turbine;
+    const turbine: [string, string[]] = ["Turbine", [`${t.running} × ${fmt(t.flowEach, 2)}`, `of ${fmt(t.designFlow, 2)} m³/s (${fmt(t.load * 100)}%)`, `→ efficiency ${fmt(t.efficiency * 100, 1)}%`]];
+    const power: [string, string[]] = ["Power", ["9.81", `× ${fmt(b.water.used, 2)}`, `× ${fmt(b.head.net, 2)}`, `× ${fmt(t.efficiency, 3)}`, `× ${fmt(b.chain.generator, 2)}`, `× ${fmt(b.chain.transformerKeep, 2)}`, `= ${fmt(b.powerKW, 1)} kW`]];
+    return [water, head, turbine, power];
+  }
+
+  function drawCalc(op: Operation): void {
+    const rows = q<HTMLElement>("#up-calc-rows");
+    rows.replaceChildren();
+    for (const [label, terms] of calcRows(op)) {
+      const name = document.createElement("span");
+      name.textContent = label;
+      const value = document.createElement("span");
+      value.textContent = terms.map((term) => term.replace(/ /g, NBSP)).join(" ");
+      rows.append(name, value);
+    }
+  }
 
   function drawChart(op: Operation): void {
     const { width, height, margin } = CHART;
@@ -333,6 +401,7 @@ export function createPanel(root: HTMLElement, hooks: PanelHooks): Panel {
     q("#up-installed").textContent = `Installed ${fmt(op.installedKW)} kW`;
     q("#up-running").textContent = `${op.running} of ${setup.count} turbines running`;
     q("#up-explain").textContent = statusText(op);
+    drawCalc(op);
 
     // Dam
     for (const b of damButtons) b.setAttribute("aria-pressed", String(Number(b.dataset.dam) === setup.damHeight));
