@@ -1,0 +1,101 @@
+/* GridSim plant page: the Anatomy figure on the left, the 2D game's upgrade panel on the right. */
+
+body {
+  background: var(--anatomy-page, #f2f2ef);
+}
+
+.stage {
+  position: fixed;
+  inset: 0 var(--panel-width) 0 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  box-sizing: border-box;
+  background: var(--anatomy-page);
+  overflow: hidden;
+}
+
+.stage .iso-figure {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.stage .iso-plate {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 52px 24px;
+}
+
+.upgrade .up-close {
+  display: none;
+}
+
+/* Water: a pale blue set of the figure's own tokens. */
+.water {
+  --anatomy-paper: #16263a;
+  --anatomy-face: #1d3350;
+  --anatomy-top: #24426a;
+  --anatomy-shade-0: #13233a;
+  --anatomy-shade-1: #162a44;
+  --anatomy-shade-2: #19304e;
+  --anatomy-shade-3: #1c3658;
+}
+
+.iso[data-theme="light"] .water {
+  --anatomy-paper: #dbe8f5;
+  --anatomy-face: #e8f1fa;
+  --anatomy-top: #cfe1f3;
+  --anatomy-shade-0: #bcd3ec;
+  --anatomy-shade-1: #c6daef;
+  --anatomy-shade-2: #d0e0f2;
+  --anatomy-shade-3: #d8e6f4;
+}
+
+.spill {
+  fill: #2a4f7e;
+  opacity: 0.85;
+  stroke: var(--anatomy-blue);
+  stroke-width: var(--anatomy-weight);
+  stroke-linejoin: round;
+}
+
+.iso[data-theme="light"] .spill {
+  fill: #b9d3ee;
+  opacity: 0.95;
+}
+
+.flow .iso-line[data-flow] {
+  animation: flow var(--flow-dur, 2s) linear infinite;
+  opacity: 0.55;
+}
+
+@keyframes flow {
+  to {
+    stroke-dashoffset: -16;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow .iso-line[data-flow] {
+    animation: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .stage {
+    position: static;
+    padding: 12px;
+  }
+
+  .upgrade {
+    position: static;
+    width: auto;
+    transform: none;
+  }
+
+  body {
+    overflow: auto;
+  }
+}

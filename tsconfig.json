@@ -12,5 +12,5 @@
     "skipLibCheck": true,
     "types": ["vite/client"]
   },
-  "include": ["src", "tests", "2d"]
+  "include": ["src", "tests", "2d", "plant"]
 }
