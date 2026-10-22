@@ -1,0 +1,20 @@
+// The map page from the running dev server: the whole map, then a click on the plant (zoomed, panel open), turned.
+import { chromium } from "@playwright/test";
+const browser = await chromium.launch({ channel: "chrome" });
+const page = await browser.newPage({ viewport: { width: 1500, height: 900 } });
+const errors = [];
+page.on("pageerror", (e) => errors.push(String(e)));
+page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+await page.goto("http://localhost:5173/map/");
+await page.waitForTimeout(1800);
+await page.screenshot({ path: "shots/map-overview.png" });
+const plant = page.locator('[data-act="plant"]').nth(1);
+const b = await plant.boundingBox();
+await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+await page.waitForTimeout(1200);
+await page.screenshot({ path: "shots/map-plant.png" });
+await page.keyboard.press("Escape");
+await page.waitForTimeout(1000);
+await page.screenshot({ path: "shots/map-back.png" });
+console.log("errors:", errors.length ? errors.join(" | ") : "none", await page.evaluate(() => document.documentElement.dataset.errors || ""));
+await browser.close();

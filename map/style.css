@@ -1,0 +1,33 @@
+/* GridSim map page: the Colorfigures map fills the window; the 2D game's panel slides in on the right. */
+
+body {
+  display: block !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+/* The engine's own page furniture is not used here. */
+body > header,
+body > .controls,
+body > #readout,
+body > .made-with {
+  display: none !important;
+}
+
+body > .stage {
+  position: fixed;
+  inset: 0;
+  max-width: none !important;
+}
+
+#fig {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+
+.upgrade {
+  z-index: 5;
+  font-family: var(--font);
+}
