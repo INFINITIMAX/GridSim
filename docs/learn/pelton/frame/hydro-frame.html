@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Learn Energy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+} }
+</script>
+<style>
+:root {
+  --paper: #edf0f2; --trace: #d9dfe4; --ink: #1c2531; --muted: #5d6874;
+  --card: #f8f9fa; --line: #cdd4db; --accent: #e0442e; --ok: #2e9e6a; --warn: #e2a72e;
+}
+* { box-sizing: border-box; margin: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: var(--paper); color: var(--ink);
+  font-family: "Barlow", sans-serif; }
+#traces, #gl, #leaders { position: fixed; inset: 0; width: 100%; height: 100%; }
+#leaders { pointer-events: none; }
+.h { font-family: "Barlow Semi Condensed", sans-serif; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.mono { font-family: "JetBrains Mono", monospace; }
+.card { position: absolute; background: var(--card); border: 1px solid var(--line); border-radius: 6px; }
+
+.rail { position: fixed; left: 0; top: 0; bottom: 0; width: 62px; border-right: 1px solid var(--line);
+  background: #e6eaed; display: flex; flex-direction: column; align-items: center; padding-top: 40px; gap: 34px; font-size: 24px; }
+.rail .open { width: 38px; height: 38px; border: 1px solid var(--line); border-radius: 6px; display: grid; place-items: center; font-size: 16px; background: var(--card); margin-bottom: 30px; }
+.rail .by { position: absolute; bottom: 70px; writing-mode: vertical-rl; transform: rotate(180deg); font-size: 11px; letter-spacing: .14em; color: var(--muted); }
+
+.brand { position: fixed; left: 84px; top: 18px; display: flex; align-items: center; gap: 18px; }
+.brand .logo { width: 62px; height: 62px; border: 5px solid var(--ink); border-radius: 50%; display: grid; place-items: center; font-size: 32px; color: var(--accent); }
+.brand .t1 { font-size: 34px; letter-spacing: .2em; font-weight: 600; }
+.brand .t2 { font-size: 17px; letter-spacing: .32em; color: var(--muted); margin-top: 2px; }
+
+.callout { padding: 12px 16px 13px 14px; width: 236px; display: flex; gap: 12px; }
+.callout i { font-size: 26px; margin-top: 1px; }
+.callout .h { font-size: 15px; }
+.callout p { font-size: 13px; line-height: 1.35; color: var(--muted); margin-top: 3px; }
+
+.right { position: fixed; right: 28px; width: 400px; }
+.progress { top: 22px; height: 60px; display: flex; align-items: center; gap: 16px; padding: 0 18px; width: 220px; }
+.progress i { font-size: 30px; }
+.bar { height: 7px; width: 96px; border-radius: 4px; background: #dfe4e8; margin-top: 7px; }
+.clock { position: fixed; right: 40px; top: 30px; font-size: 15px; line-height: 1.5; letter-spacing: .08em; text-align: left; width: 148px; }
+
+.panel { top: 104px; padding: 0; }
+.tabs { display: flex; gap: 26px; padding: 16px 20px 0; border-bottom: 1px solid var(--line); }
+.tabs span { font-size: 15px; padding-bottom: 12px; color: var(--muted); }
+.tabs span.on { color: var(--ink); border-bottom: 2px solid var(--ink); }
+.body { padding: 18px 20px 18px; }
+.body .ttl { font-size: 22px; display: flex; justify-content: space-between; }
+.body p { font-size: 15px; line-height: 1.45; color: #36414d; margin-top: 8px; }
+.feat { display: flex; align-items: center; gap: 18px; margin-top: 12px; font-size: 14.5px; color: #36414d; }
+.feat i { width: 42px; height: 42px; border: 1px solid var(--line); border-radius: 6px; display: grid; place-items: center; font-size: 21px; color: var(--ink); background: #fff; }
+
+.try { top: 468px; padding: 14px 18px 16px; }
+.try .top { display: flex; justify-content: space-between; align-items: center; }
+.btns { display: flex; gap: 8px; }
+.btns b { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 6px; display: grid; place-items: center; font-weight: 400; background: #fff; }
+.btns b.run { background: var(--accent); color: #fff; border-color: var(--accent); }
+.zone { margin-top: 14px; border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; background: #fff; }
+.zrow { display: flex; justify-content: space-between; align-items: center; }
+.read { font-size: 30px; letter-spacing: .02em; }
+.pill { font-size: 13px; padding: 4px 10px; border-radius: 20px; background: #dcf1e5; color: #1f7a4f; }
+.scale { position: relative; display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 4px; margin-top: 14px; }
+.scale div { height: 8px; border-radius: 3px; }
+.scale small { display: block; font-size: 11px; margin-top: 6px; color: var(--muted); letter-spacing: .05em; }
+.marker { position: absolute; left: 50%; top: -6px; width: 2px; height: 20px; background: var(--ink); }
+.acts { display: flex; gap: 8px; margin-top: 14px; }
+.acts span { font-size: 13px; border: 1px solid var(--line); border-radius: 5px; padding: 6px 10px; background: var(--card); }
+
+.hint { position: fixed; left: 860px; transform: translateX(-50%); top: 680px; background: var(--ink); color: #fff; font-size: 11.5px; font-weight: 600; padding: 4px 12px; border-radius: 10px; letter-spacing: .02em; }
+.zoombar { position: fixed; left: 860px; transform: translateX(-50%); top: 710px; height: 38px; display: flex; align-items: center; gap: 20px; padding: 0 16px; font-size: 18px; position: fixed; }
+
+.lessons { position: fixed; left: 86px; bottom: 26px; right: 28px; }
+.lessons .lbl { font-size: 17px; margin-bottom: 10px; }
+.strip { display: flex; gap: 12px; }
+.lesson { position: relative; height: 78px; flex: 1; display: flex; align-items: center; gap: 12px; padding: 0 14px 0 8px; }
+.lesson.on { border: 2px solid #3d6a73; flex: 1.25; }
+.lesson img { height: 70px; width: 92px; object-fit: contain; }
+.lesson .h { font-size: 14px; flex: 1; }
+.lesson .ph-caret-right { font-size: 16px; }
+</style>
+
+<style>
+.rail, .clock, .hint, .zoombar, .progress { display: none !important; }
+.brand { left: 28px !important; top: 22px !important; }
+.brand .logo { width: 52px !important; height: 52px !important; border-width: 4px !important; font-size: 26px !important; }
+.brand .t1 { font-size: 28px !important; }
+.brand .t2 { font-size: 14px !important; }
+.lessons { left: 28px !important; top: 104px; bottom: 56px !important; right: auto !important; width: 250px; }
+.strip { flex-direction: column; gap: 8px; }
+.lesson { flex: none !important; height: 50px !important; padding: 0 12px 0 4px !important; }
+.lesson img { height: 44px !important; width: 56px !important; }
+.lesson .h { font-size: 13px !important; }
+.strip { gap: 6px !important; }
+.lesson .num { font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--muted); width: 22px; text-align: right; }
+.lesson.on { border-width: 1px !important; border-color: var(--ink) !important; box-shadow: inset 3px 0 0 var(--accent); }
+.lesson.lock { opacity: .55; }
+.steps { position: fixed; top: 30px; left: 400px; display: flex; align-items: center; gap: 14px; }
+.steps .seg { display: flex; gap: 4px; }
+.steps .seg i { display: block; width: 26px; height: 6px; border-radius: 2px; background: #d7dde2; }
+.steps .seg i.on { background: var(--ink); }
+.steps .seg i.now { background: var(--accent); }
+.sctl { position: fixed; left: 300px; bottom: 56px; display: flex; flex-direction: column; gap: 6px; }
+.sctl b { width: 34px; height: 34px; display: grid; place-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 6px; font-weight: 400; }
+.credit { position: fixed; left: 28px; bottom: 20px; font-size: 12px; color: var(--muted); }
+.credit a { color: var(--ink); }
+.hint { left: 600px !important; top: 706px !important; }
+.zoombar { left: 600px !important; top: 734px !important; }
+.sl { margin-top: 12px; }
+.sl .row { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); }
+.sl .row b { color: var(--ink); font-weight: 500; }
+.track { position: relative; height: 6px; border-radius: 3px; background: #dfe4e8; margin-top: 8px; }
+.track .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--ink); }
+.track .knob { position: absolute; top: 50%; width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 2px solid var(--ink); transform: translate(-50%, -50%); }
+.outs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.outs div { border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; background: #fff; }
+.outs small { font-size: 11.5px; color: var(--muted); letter-spacing: .06em; }
+.outs .v { font-size: 24px; margin-top: 2px; }
+.formula { margin-top: 10px; font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<svg id="traces"></svg>
+<canvas id="gl"></canvas>
+<svg id="leaders"></svg>
+
+<nav class="rail">
+  <div class="open"><i class="ph ph-caret-right"></i></div>
+  <i class="ph-fill ph-house"></i><i class="ph ph-book-open"></i><i class="ph ph-gear-six"></i><i class="ph ph-play-circle"></i><i class="ph-fill ph-gear"></i>
+  <div class="by h">Designed by Lucian</div>
+</nav>
+
+<header class="brand">
+  <div class="logo"><i class="ph-bold ph-drop"></i></div>
+  <div><div class="t1 h">Learn Energy</div><div class="t2 h">Fall · Spin · Power</div></div>
+</header>
+
+<div class="card right progress" style="right:200px">
+  <i class="ph ph-drop-half"></i>
+  <div><div class="h" style="font-size:15px">Hydro</div><div class="bar"></div></div>
+  <div class="h" style="font-size:18px;margin-left:auto;margin-top:16px">0/12</div>
+</div>
+<div class="clock mono">OCT 22, 2026<br>19:24:51</div>
+
+<section class="card right panel">
+  <div class="tabs h"><span class="on">Overview</span><span>Parts</span><span>How it works</span><span>Specs</span></div>
+  <div class="body">
+    <div class="ttl h"><span>Pelton micro-hydro</span><i class="ph ph-corners-out" style="font-size:20px;color:var(--muted)"></i></div>
+    <p>Water taken from a stream high up drops through a pipe, leaves a nozzle as a fast jet and spins a Pelton runner. The simplest way to turn falling water into electricity.</p>
+    <div class="feat"><i class="ph ph-arrow-fat-lines-down"></i>Needs a big fall, only a little water</div>
+    <div class="feat"><i class="ph ph-waves"></i>No dam: a small weir diverts part of the stream</div>
+    <div class="feat"><i class="ph ph-gear-six"></i>Runner and generator share one shaft</div>
+  </div>
+</section>
+
+<section class="card right try">
+  <div class="top"><span class="h" style="font-size:15px">Try it yourself</span>
+    <div class="btns"><b><i class="ph ph-corners-out"></i></b><b><i class="ph ph-arrow-counter-clockwise"></i></b><b class="run"><i class="ph-fill ph-play"></i></b></div></div>
+  <div class="sl"><div class="row"><span class="h">Head (fall)</span><b class="mono">60 m</b></div>
+    <div class="track"><div class="fill" style="width:40%"></div><div class="knob" style="left:40%"></div></div></div>
+  <div class="sl"><div class="row"><span class="h">Flow</span><b class="mono">40 L/s</b></div>
+    <div class="track"><div class="fill" style="width:32%"></div><div class="knob" style="left:32%"></div></div></div>
+  <div class="outs">
+    <div><small class="h">Jet speed</small><div class="v mono">34.3 m/s</div></div>
+    <div><small class="h">Power</small><div class="v mono" style="color:var(--accent)">18.8 kW</div></div>
+  </div>
+  <div class="formula mono">v = √(2gH) · P = ρ·g·Q·H·η, η ≈ 80%</div>
+</section>
+
+<div class="hint">Drag or WASD to pan · Q / E to rotate · Scroll to zoom</div>
+<div class="card zoombar"><i class="ph ph-arrow-counter-clockwise"></i><i class="ph ph-arrow-clockwise"></i><span style="color:var(--line)">|</span><i class="ph ph-minus"></i><i class="ph ph-plus"></i><span style="color:var(--line)">|</span><i class="ph ph-info"></i></div>
+
+<div class="steps"><span class="h" style="font-size:13px;color:var(--muted)">Hydro · Pelton</span>
+  <span class="seg"><i class="now"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+  <span class="mono" style="font-size:13px">1 / 12</span></div>
+<div class="sctl"><b><i class="ph ph-arrows-out-cardinal"></i></b><b><i class="ph ph-plus"></i></b><b><i class="ph ph-minus"></i></b><b><i class="ph ph-arrow-counter-clockwise"></i></b></div>
+<div class="credit">Layout inspired by <a href="https://learn-arduino-red.vercel.app/">Learn Arduino</a> by Dilum Sanjaya</div>
+<div class="lessons">
+  <div class="lbl h">Lessons</div>
+  <div class="strip" id="strip"></div>
+</div>
+
+<div id="callouts"></div>
+
+<script type="module">
+import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
+import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
+import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js";
+import { LineMaterial } from "three/addons/lines/LineMaterial.js";
+
+await Promise.all([
+  document.fonts.load('600 40px "Barlow Semi Condensed"'),
+  document.fonts.load('500 40px "JetBrains Mono"'),
+]);
+
+const INK = 0x1c2531;
+const lineMats = [];
+
+(function traces() {
+  const svg = document.getElementById("traces");
+  let s = 11;
+  const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  const W = innerWidth, H = innerHeight;
+  let out = "";
+  for (let i = 0; i < 46; i++) {
+    let x = Math.round(rnd() * W / 20) * 20, y = Math.round(rnd() * H / 20) * 20;
+    let d = `M${x} ${y}`;
+    out += `<circle cx="${x}" cy="${y}" r="4" fill="none" stroke="#d3dae0" stroke-width="1.5"/>`;
+    for (let k = 0; k < 3; k++) {
+      const len = 40 + rnd() * 160, dir = Math.floor(rnd() * 4);
+      if (dir === 0) x += len; else if (dir === 1) y += len; else if (dir === 2) { x += len * .7; y += len * .7; } else { x += len * .7; y -= len * .7; }
+      d += ` L${x.toFixed(0)} ${y.toFixed(0)}`;
+    }
+    out += `<path d="${d}" fill="none" stroke="#d6dce2" stroke-width="1.5"/><circle cx="${x}" cy="${y}" r="4" fill="none" stroke="#d3dae0" stroke-width="1.5"/>`;
+  }
+  svg.innerHTML = out;
+})();
+
+function hullMat(t) {
+  const m = new THREE.MeshBasicMaterial({ color: INK, side: THREE.BackSide });
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.thick = { value: t };
+    sh.vertexShader = "uniform float thick;\n" + sh.vertexShader.replace("#include <begin_vertex>", "vec3 transformed = position + normalize(normal) * thick;");
+  };
+  return m;
+}
+function lineMat(w) { const m = new LineMaterial({ color: INK, linewidth: w }); lineMats.push(m); return m; }
+function part(geom, color, o = {}) {
+  const { edges = true, hull = true, angle = 30, map = null, thick = 0.016, lw = 1.3, emissive = 0, opacity = 1 } = o;
+  const g = new THREE.Group();
+  const mat = new THREE.MeshLambertMaterial({ color, map, emissive, transparent: opacity < 1, opacity });
+  const mesh = new THREE.Mesh(geom, mat);
+  mesh.castShadow = opacity === 1; mesh.receiveShadow = true;
+  g.add(mesh);
+  if (hull) {
+    let hg = geom.clone();
+    for (const k of Object.keys(hg.attributes)) if (k !== "position") hg.deleteAttribute(k);
+    hg = mergeVertices(hg, 1e-4); hg.computeVertexNormals();
+    g.add(new THREE.Mesh(hg, hullMat(thick)));
+  }
+  if (edges) {
+    const eg = new LineSegmentsGeometry().fromEdgesGeometry(new THREE.EdgesGeometry(geom, angle));
+    g.add(new LineSegments2(eg, lineMat(lw)));
+  }
+  return g;
+}
+const at = (obj, x, y, z, ry = 0) => { obj.position.set(x, y, z); obj.rotation.y = ry; return obj; };
+const box = (w, h, d, c, o) => part(new THREE.BoxGeometry(w, h, d), c, o);
+const rbox = (w, h, d, r, c, o) => part(new RoundedBoxGeometry(w, h, d, 3, r), c, o);
+const cyl = (r, h, c, seg = 28, o) => part(new THREE.CylinderGeometry(r, r, h, seg), c, o);
+// cylinder lying along x
+const xcyl = (r, h, c, seg = 32, o) => part(new THREE.CylinderGeometry(r, r, h, seg).rotateZ(Math.PI / 2), c, o);
+// cylinder lying along z
+const zcyl = (r1, r2, h, c, seg = 32, o) => part(new THREE.CylinderGeometry(r1, r2, h, seg).rotateX(Math.PI / 2), c, o);
+function textTex(w, h, draw) {
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  draw(c.getContext("2d"), w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
+}
+function decal(w, h, tex, rotX = -Math.PI / 2) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshLambertMaterial({ map: tex, transparent: true }));
+  m.rotation.x = rotX; return m;
+}
+function tube(points, color, r, o = {}) {
+  const curve = new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(...p)));
+  return part(new THREE.TubeGeometry(curve, 120, r, 24), color, { edges: false, thick: 0.014, ...o });
+}
+
+const C = { steel: 0x6f86a0, steelD: 0x52667d, shaft: 0xb9c0c8, gen: 0x3c63a8, concrete: 0xc9cdd1, water: 0x8fcff0,
+  bucket: 0xd6dbe0, pipe: 0x56606b, white: 0xf3f4f1, red: 0xd9442f, lcd: 0xb3d3a2, base: 0x8a96a3 };
+
+// ---------- the Pelton unit ----------
+const RUN = new THREE.Vector3(-1.2, 1.55, 0);   // runner centre, shaft along x
+const R = 0.86;                                  // pitch radius
+function makeRunner() {
+  const g = new THREE.Group();
+  g.add(xcyl(0.56, 0.18, C.bucket, 40));
+  g.add(xcyl(0.16, 0.36, C.shaft, 24));
+  const N = 18;
+  for (let k = 0; k < N; k++) {
+    const a = (k / N) * Math.PI * 2;
+    const pos = new THREE.Vector3(0, Math.cos(a) * R, Math.sin(a) * R);
+    const tan = new THREE.Vector3(0, -Math.sin(a), Math.cos(a));
+    for (const sx of [-0.105, 0.105]) {
+      const cup = part(new THREE.SphereGeometry(0.13, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2).scale(0.95, 0.8, 1.45), C.bucket, { angle: 50, thick: 0.01, lw: 1 });
+      cup.position.copy(pos).add(new THREE.Vector3(sx, 0, 0));
+      cup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tan);
+      g.add(cup);
+    }
+    const arm = part(new THREE.BoxGeometry(0.06, 0.3, 0.08), C.bucket, { thick: 0.008, lw: 1 });
+    arm.position.copy(pos.clone().multiplyScalar(0.8));
+    arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), pos.clone().normalize());
+    g.add(arm);
+  }
+  return g;
+}
+function makeNozzle() {
+  const g = new THREE.Group();
+  g.add(at(zcyl(0.1, 0.24, 0.5, C.steelD, 28), 0, 0, 0));
+  g.add(at(zcyl(0.24, 0.24, 0.35, C.steel, 28), 0, 0, -0.42));
+  g.add(at(zcyl(0.32, 0.32, 0.05, C.steel, 28), 0, 0, -0.62));
+  g.add(at(zcyl(0.035, 0.035, 0.12, C.shaft, 12), 0, 0, 0.3));   // spear tip
+  return g;
+}
+function makeGenerator() {
+  const g = new THREE.Group();
+  g.add(xcyl(0.52, 1.1, C.gen, 40));
+  for (let i = 0; i < 7; i++) g.add(at(xcyl(0.55, 0.05, C.gen, 40, { thick: 0.008, lw: 1 }), -0.42 + i * 0.14, 0, 0));
+  g.add(at(xcyl(0.34, 0.12, 0x34558f, 40), -0.6, 0, 0));
+  g.add(at(box(0.42, 0.24, 0.36, 0x34558f), 0.1, 0.62, 0));
+  g.add(at(box(0.9, 0.5, 0.26, C.base), 0, -0.66, 0.34));
+  g.add(at(box(0.9, 0.5, 0.26, C.base), 0, -0.66, -0.34));
+  const plate = textTex(400, 160, (x, w, h) => {
+    x.fillStyle = "#eef1f3"; x.fillRect(0, 0, w, h);
+    x.fillStyle = "#1c2531"; x.font = '700 58px "Barlow Semi Condensed"'; x.textBaseline = "middle"; x.fillText("20 kVA", 20, 52);
+    x.font = '500 30px "JetBrains Mono"'; x.fillText("1500 rpm · 50 Hz", 20, 118);
+  });
+  g.add(at(decal(0.45, 0.18, plate, 0), 0.1, 0.0, 0.532));
+  return g;
+}
+function makeCabinet() {
+  const g = new THREE.Group();
+  g.add(at(rbox(0.9, 1.6, 0.5, 0.04, C.white), 0, 0.8, 0));
+  g.add(at(box(0.52, 0.28, 0.03, C.lcd, { lw: 1.1 }), 0, 1.25, 0.26));
+  const lt = textTex(512, 256, (x, w, h) => {
+    x.fillStyle = "#1f3a2a"; x.font = '500 64px "JetBrains Mono"'; x.textBaseline = "middle";
+    x.fillText("50.0 Hz", 30, 80); x.font = '500 46px "JetBrains Mono"'; x.fillText("DUMP 2.1kW", 30, 180);
+  });
+  g.add(at(decal(0.48, 0.25, lt, 0), 0, 1.25, 0.277));
+  [[-0.2, 0x45d07a], [0, 0xe8b931], [0.2, 0xff5a3c]].forEach(([x, c]) => {
+    const l = at(cyl(0.04, 0.03, c, 14, { thick: 0.006 }), x, 0.98, 0.26); l.rotation.x = Math.PI / 2; g.add(l);
+  });
+  g.add(at(box(0.6, 0.02, 0.02, 0x9aa3ad, { edges: false, hull: false }), 0, 0.7, 0.26));
+  g.add(at(box(0.6, 0.02, 0.02, 0x9aa3ad, { edges: false, hull: false }), 0, 0.6, 0.26));
+  return g;
+}
+function makeUnit() {
+  const g = new THREE.Group();
+  // concrete: pit block under the runner, plinth under bearings + generator
+  g.add(at(box(1.5, 0.5, 2.8, C.concrete), RUN.x, 0.25, 0));
+  g.add(at(box(3.1, 0.5, 1.6, C.concrete), 0.75, 0.25, 0));
+  // tailrace channel out the front
+  g.add(at(box(0.9, 0.24, 1.4, C.concrete), RUN.x, 0.12, 2.1));
+  g.add(at(box(0.62, 0.05, 1.4, C.water, { edges: false }), RUN.x, 0.26, 2.1));
+  // housing lower half, open top: the runner shows
+  const hx = RUN.x, hy = 0.5, top = RUN.y - 0.25;
+  const hh = top - hy;
+  g.add(at(box(0.72, 0.06, 2.1, C.steel), hx, hy + 0.03, 0));
+  g.add(at(box(0.06, hh, 2.1, C.steel), hx - 0.36, hy + hh / 2, 0));
+  g.add(at(box(0.72, hh, 0.06, C.steel), hx, hy + hh / 2, -1.05));
+  g.add(at(box(0.06, 0.05, 2.2, C.steelD), hx - 0.38, top, 0));
+  g.add(at(box(0.8, 0.05, 0.06, C.steelD), hx, top, -1.08));
+  // runner
+  const runner = makeRunner(); runner.position.copy(RUN); g.add(runner);
+  // shaft, bearings, coupling
+  g.add(at(xcyl(0.08, 2.0, C.shaft, 24), -0.2, RUN.y, 0));
+  for (const bx of [-0.62, -0.05]) {
+    g.add(at(box(0.3, 0.12, 0.7, C.base), bx, 0.56, 0));
+    g.add(at(box(0.26, 0.85, 0.36, C.steelD), bx, 1.05, 0));
+    g.add(at(xcyl(0.2, 0.28, C.steelD, 28), bx, RUN.y, 0));
+  }
+  g.add(at(xcyl(0.26, 0.12, C.shaft, 32), 0.32, RUN.y, 0));
+  g.add(at(xcyl(0.26, 0.12, C.shaft, 32), 0.46, RUN.y, 0));
+  const gen = makeGenerator(); gen.position.set(1.25, RUN.y, 0); g.add(gen);
+  // nozzle aims along +z at the top of the pitch circle
+  const NZ = new THREE.Vector3(RUN.x, RUN.y + R, -1.42);
+  const nz = makeNozzle(); nz.position.copy(NZ); g.add(nz);
+  // the jet
+  const jet = part(new THREE.CylinderGeometry(0.055, 0.055, 1.12, 20).rotateX(Math.PI / 2), C.water, { edges: false, thick: 0.008, emissive: 0x1d5f80 });
+  jet.position.set(RUN.x, NZ.y, -0.62); g.add(jet);
+  // deflector above the jet
+  const defl = box(0.34, 0.04, 0.26, C.steelD); defl.position.set(RUN.x, NZ.y + 0.17, -1.02); defl.rotation.x = -0.35; g.add(defl);
+  // penstock end, valve, pipe climbing away up the slope
+  g.add(tube([[RUN.x, NZ.y, -2.0], [RUN.x, NZ.y, -2.6], [RUN.x, NZ.y + 0.5, -3.3], [RUN.x, NZ.y + 1.4, -4.2]], C.pipe, 0.24));
+  g.add(at(zcyl(0.3, 0.3, 0.36, C.steelD, 28), RUN.x, NZ.y, -1.88));
+  g.add(at(box(0.5, 0.5, 0.3, C.red), RUN.x, NZ.y, -2.24));
+  g.add(at(cyl(0.035, 0.42, C.shaft, 10), RUN.x, NZ.y + 0.45, -2.24));
+  const wheel = part(new THREE.TorusGeometry(0.22, 0.03, 10, 32).rotateX(Math.PI / 2), C.red, { edges: false, thick: 0.01 });
+  wheel.position.set(RUN.x, NZ.y + 0.66, -2.24); g.add(wheel);
+  for (const s of [-0.62, -0.95, -1.25]) {} // (spacer)
+  // concrete saddle under the pipe
+  g.add(at(box(0.7, NZ.y - 0.2, 0.4, C.concrete), RUN.x, (NZ.y - 0.2) / 2, -2.75));
+  return { g, NZ };
+}
+
+// ---------- scene ----------
+const canvas = document.getElementById("gl");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(devicePixelRatio);
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+function lights(scene) {
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xaeb8c2, 2.2));
+  const d = new THREE.DirectionalLight(0xffffff, 1.6);
+  d.position.set(-3, 10, 5); d.castShadow = true;
+  d.shadow.mapSize.set(2048, 2048); d.shadow.radius = 6;
+  Object.assign(d.shadow.camera, { left: -9, right: 9, top: 9, bottom: -9 });
+  d.shadow.camera.updateProjectionMatrix();
+  scene.add(d);
+}
+const scene = new THREE.Scene();
+lights(scene);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.ShadowMaterial({ opacity: 0.13 }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+const { g: unit, NZ } = makeUnit(); scene.add(unit);
+scene.add(at(makeCabinet(), 3.1, 0, -1.3, -Math.PI / 2 + 0.0));
+scene.add(tube([[1.35, RUN.y + 0.74, 0], [1.6, RUN.y + 1.05, -0.4], [2.6, 1.0, -1.1], [2.86, 1.0, -1.3]], 0x2b3038, 0.04));
+
+const camera = new THREE.OrthographicCamera();
+const target = new THREE.Vector3(0.1, 1.0, -0.3);
+camera.position.copy(target).add(new THREE.Vector3(1, 0.85, 1).normalize().multiplyScalar(30));
+camera.lookAt(target);
+const VIEW_H = 11.2;
+const OFF = [40, -75];
+function fit() {
+  const a = innerWidth / innerHeight;
+  camera.left = -VIEW_H * a / 2; camera.right = VIEW_H * a / 2; camera.top = VIEW_H / 2; camera.bottom = -VIEW_H / 2;
+  camera.near = 0.1; camera.far = 100;
+  camera.setViewOffset(innerWidth, innerHeight, OFF[0], OFF[1], innerWidth, innerHeight);
+  camera.updateProjectionMatrix();
+}
+fit();
+
+const callouts = [
+ {
+  "icon": "ph-pipe",
+  "t": "Penstock",
+  "p": "Brings the water down the slope. The whole fall ends up as pressure here.",
+  "at": [
+   -1.2,
+   2.75,
+   -3.1
+  ],
+  "dx": 115,
+  "dy": -134
+ },
+ {
+  "icon": "ph-arrow-line-right",
+  "t": "Nozzle & spear",
+  "p": "Turns pressure into a fast jet. The spear slides in and out to set the flow.",
+  "at": [
+   -1.2,
+   2.41,
+   -1.3
+  ],
+  "dx": -213,
+  "dy": -161
+ },
+ {
+  "icon": "ph-fan",
+  "t": "Pelton runner",
+  "p": "Spoon-shaped buckets catch the jet and split it in two. Impulse, not pressure.",
+  "at": [
+   -1.2,
+   1.75,
+   0.86
+  ],
+  "dx": -140,
+  "dy": -109
+ },
+ {
+  "icon": "ph-lightning",
+  "t": "Generator",
+  "p": "Same shaft as the runner. 4 poles at 1500 rpm give 50 Hz.",
+  "at": [
+   1.25,
+   2.0,
+   0.3
+  ],
+  "dx": 169,
+  "dy": -107
+ },
+ {
+  "icon": "ph-sliders-horizontal",
+  "t": "Load controller",
+  "p": "Holds 50 Hz by sending unused power to a dump load heater.",
+  "at": [
+   3.1,
+   1.25,
+   -1.05
+  ],
+  "dx": -13,
+  "dy": 186
+ },
+ {
+  "icon": "ph-waves",
+  "t": "Tailrace",
+  "p": "Water leaves slow and calm: its energy stayed in the runner.",
+  "at": [
+   -1.2,
+   0.3,
+   2.5
+  ],
+  "dx": 33,
+  "dy": 163
+ }
+];
+const host = document.getElementById("callouts");
+function project(p) {
+  const v = new THREE.Vector3(...p).project(camera);
+  return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight];
+}
+function layoutCallouts() {
+  host.innerHTML = ""; let svg = "";
+  for (const c of callouts) {
+    const [ax, ay] = project(c.at);
+    console.log(c.t, Math.round(ax), Math.round(ay));
+    const el = document.createElement("div");
+    el.className = "card callout";
+    el.innerHTML = `<i class="ph ${c.icon}"></i><div><div class="h">${c.t}</div><p>${c.p}</p></div>`;
+    host.appendChild(el);
+    const w = el.offsetWidth, h = el.offsetHeight;
+    const cx = ax + c.dx, cy = ay + c.dy;
+    el.style.left = `${cx - w / 2}px`; el.style.top = `${cy - h / 2}px`;
+    let sx = cx, sy = cy;
+    if (Math.abs(c.dy) * w > Math.abs(c.dx) * h) sy = cy + (c.dy > 0 ? -h / 2 : h / 2), sx = cx - c.dx * 0.25;
+    else sx = cx + (c.dx > 0 ? -w / 2 : w / 2);
+    svg += `<path d="M${sx} ${sy} L${ax} ${ay}" stroke="#1c2531" stroke-width="1.4" stroke-dasharray="4 4" fill="none"/>`;
+    svg += `<circle cx="${sx}" cy="${sy}" r="4" fill="#f8f9fa" stroke="#3d6a73" stroke-width="1.6"/>`;
+    svg += `<circle cx="${ax}" cy="${ay}" r="6.5" fill="#fff" stroke="#e0442e" stroke-width="2"/><circle cx="${ax}" cy="${ay}" r="2.6" fill="#e0442e"/>`;
+  }
+  document.getElementById("leaders").innerHTML = svg;
+}
+
+const thumbR = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+thumbR.setPixelRatio(2); thumbR.setSize(184, 140);
+function thumb(make) {
+  const s = new THREE.Scene(); lights(s);
+  const o = make(); s.add(o);
+  const bb = new THREE.Box3().setFromObject(o), sph = bb.getBoundingSphere(new THREE.Sphere());
+  const cam = new THREE.OrthographicCamera();
+  const r = sph.radius * 1.0, a = 184 / 140;
+  Object.assign(cam, { left: -r * a, right: r * a, top: r, bottom: -r, near: 0.1, far: 100 });
+  cam.position.copy(sph.center).add(new THREE.Vector3(1, 0.85, 1).normalize().multiplyScalar(30)); cam.lookAt(sph.center);
+  cam.updateProjectionMatrix();
+  o.traverse((m) => m.material?.resolution?.set(184, 140));
+  thumbR.render(s, cam);
+  return thumbR.domElement.toDataURL();
+}
+const lessons = [
+  ["1. Meet the plant", () => makeUnit().g],
+  ["2. Head and flow", () => tube([[0, 0, 0], [0, 0.2, -0.8], [0, 0.9, -1.8]], C.pipe, 0.24)],
+  ["3. Weir & intake", () => { const g = new THREE.Group(); g.add(at(box(1.6, 0.5, 0.4, C.concrete), 0, 0.25, 0)); g.add(at(box(1.2, 0.06, 0.6, C.water, { edges: false }), 0, 0.5, 0.5)); return g; }],
+  ["4. Penstock", () => tube([[0, 0, 0], [0, 0.2, -0.8], [0, 0.9, -1.8]], C.pipe, 0.24)],
+  ["5. Valve & water hammer", () => { const g = new THREE.Group(); g.add(box(0.5, 0.5, 0.3, C.red)); const w = part(new THREE.TorusGeometry(0.22, 0.03, 10, 32).rotateX(Math.PI / 2), C.red, { edges: false, thick: 0.01 }); w.position.y = 0.55; g.add(w); return g; }],
+  ["6. Nozzle & spear", () => makeNozzle()],
+  ["7. Pelton runner", () => makeRunner()],
+  ["8. Efficiency", () => makeRunner()],
+  ["9. Speed, size, choice", () => makeRunner()],
+  ["10. Generator", () => makeGenerator()],
+  ["11. Load controller", () => makeCabinet()],
+  ["12. The whole chain", () => makeUnit().g],
+];
+const strip = document.getElementById("strip");
+lessons.forEach(([t, mk], i) => {
+  const d = document.createElement("div");
+  d.className = "card lesson" + (i === 0 ? " on" : i > 2 ? " lock" : "");
+  d.style.position = "relative";
+  d.innerHTML = `<span class="num">${String(i + 1).padStart(2, "0")}</span><img src="${thumb(mk)}"><span class="h">${t.replace(/^\d+\. /, "")}</span><i class="ph ${i > 2 ? "ph-lock-simple" : "ph-caret-right"}"></i>`;
+  strip.appendChild(d);
+});
+
+function frame() {
+  for (const m of lineMats) m.resolution.set(innerWidth, innerHeight);
+  renderer.render(scene, camera);
+}
+frame(); layoutCallouts(); frame();
+window.__ready = true;
+</script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Learn Energy</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <svg id="traces" aria-hidden="true"></svg>
+    <canvas id="gl"></canvas>
+    <svg id="leaders" aria-hidden="true"></svg>
+
+    <header class="brand">
+      <div class="logo" data-icon="drop-bold"></div>
+      <div>
+        <div class="t1 h">Learn Energy</div>
+        <div class="t2 h">Fall · Spin · Power</div>
+      </div>
+    </header>
+
+    <div class="steps" id="progress"></div>
+
+    <nav class="lessons" aria-label="Lessons">
+      <div class="lbl h">Lessons</div>
+      <div class="strip" id="lesson-list"></div>
+    </nav>
+
+    <div class="sctl">
+      <button type="button" id="btn-pan" aria-label="Pan" aria-pressed="false" data-icon="arrows-out-cardinal"></button>
+      <button type="button" id="btn-in" aria-label="Zoom in" data-icon="plus"></button>
+      <button type="button" id="btn-out" aria-label="Zoom out" data-icon="minus"></button>
+      <button type="button" id="btn-reset" aria-label="Reset view" data-icon="arrow-counter-clockwise"></button>
+    </div>
+
+    <aside class="side">
+      <section class="card panel">
+        <div class="tabs h" id="tabs">
+          <button type="button" data-tab="overview" class="on">Overview</button>
+          <button type="button" data-tab="parts">Parts</button>
+          <button type="button" data-tab="how">How it works</button>
+          <button type="button" data-tab="specs">Specs</button>
+        </div>
+        <div class="body" id="panel-body"></div>
+      </section>
+      <section class="card try" id="sim"></section>
+    </aside>
+
+    <div id="callouts"></div>
+
+    <div class="credit">
+      Layout inspired by <a href="https://learn-arduino-red.vercel.app/">Learn Arduino</a> by Dilum Sanjaya
+    </div>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

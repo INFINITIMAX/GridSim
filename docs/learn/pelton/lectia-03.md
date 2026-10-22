@@ -41,7 +41,7 @@ Particule de nisip (puncte) intră odată cu apa: cele mari se depun în bazin, 
 
 Valori de test (calculate de mână):
 - d = 0,2 mm → vD = 100/1,8 · (√2,256 − 1) = 55,56 · 0,5020 = **27,9 mm/s**
-- Q = 0,040 m³/s, B = 0,4 m, vD = 0,0279 m/s → L = **3,58 m**; B/L = 0,112 < 0,125 ✓
+- Q = 0,040 m³/s, B = 0,4 m, vD = 0,0279 m/s → L = **3,58 m** (cu vD exact 27,889 mm/s: 3,586 → UI afișează **3,59 m**); B/L = 0,112 < 0,125 ✓
 - Q = 0,040, B = 0,5 → L = 2,87 m; B > L/8 = 0,36 → **avertisment**
 - Controlul cu a doua sursă (S10, Ruby & Zanke, ν = 1·10⁻⁶ m²/s, Δ = 1,65): d = 0,2 mm → 25,7 mm/s. Diferența de 8% față de S2 vine din vâscozitatea implicită (≈ 1,11·10⁻⁶ în S2, apă mai rece). Testul cere acord ≤ 10%.
 

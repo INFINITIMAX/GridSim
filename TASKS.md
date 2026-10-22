@@ -20,3 +20,16 @@ Index de stare. Detalii: `docs/plan.md`; predări: `docs/handoff/`.
 | P7 | Verificare e2e | planner + tester | de făcut |
 | P8 | Review + gate-uri manuale | planner + Lucian | de făcut |
 | P9 | Deploy (GitHub public + Vercel) | planner, după aprobare | de făcut |
+
+## Learn Energy · Hydro · Pelton (din 22-10-2026)
+
+Detalii: `docs/learn/pelton/plan.md`; criterii: `docs/learn/pelton/GATES.md`.
+
+| # | Task | Cine | Stare |
+|---|---|---|---|
+| L0 | Programa, sursele, conținutul lecțiilor 1–3 | planner + Lucian | gata, aprobat 22-10-2026 |
+| L-a | Configurare build/test pentru learn/ | planner | gata 22-10-2026 |
+| L-b | Pagina /learn/, lecțiile 1–3 | coder (+ ajustări vizuale planner) | gata 22-10-2026 |
+| L-c | Teste tests/learn/ | tester | gata: 38/38, mutația g=10 prinsă |
+| L-d | Review | reviewer | ACCEPTAT, neblocantele 1–6 + 12 rezolvate |
+| L-e | Scripturi de verificare + gate-uri + capturi | planner | L0–L4 trec; **L5 așteaptă aprobarea lui Lucian** |
