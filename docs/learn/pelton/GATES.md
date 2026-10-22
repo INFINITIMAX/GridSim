@@ -29,6 +29,7 @@ Scope: the /learn/ page with lessons 1-3 playable, built from the approved varia
   EXPECT: learn page verification passed
   EVIDENCE: pending
 
-- [ ] L5: Lucian has seen screenshots of lessons 1-3 and approved them against frame/hydro-frame.png
+- [x] L5: Lucian has seen screenshots of lessons 1-3 and approved them against frame/hydro-frame.png
   MANUAL: Lucian approves the three screenshots
+  EVIDENCE: Lucian, 23-10-2026: „toate acele frames arata foarte bine”
   EVIDENCE: pending

@@ -32,4 +32,4 @@ Detalii: `docs/learn/pelton/plan.md`; criterii: `docs/learn/pelton/GATES.md`.
 | L-b | Pagina /learn/, lecțiile 1–3 | coder (+ ajustări vizuale planner) | gata 22-10-2026 |
 | L-c | Teste tests/learn/ | tester | gata: 38/38, mutația g=10 prinsă |
 | L-d | Review | reviewer | ACCEPTAT, neblocantele 1–6 + 12 rezolvate |
-| L-e | Scripturi de verificare + gate-uri + capturi | planner | L0–L4 trec; **L5 așteaptă aprobarea lui Lucian** |
+| L-e | Scripturi de verificare + gate-uri + capturi | planner | L0–L5 trec (L5 aprobat de Lucian 23-10-2026) |
