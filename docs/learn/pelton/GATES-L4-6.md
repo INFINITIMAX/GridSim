@@ -33,6 +33,6 @@ Scope: lessons 4-6 (Penstock, Valve & water hammer, Nozzle & spear) playable on 
   MANUAL: the planner plants each mutation, runs npx vitest run tests/learn, records the failing test names, and restores the file
   EVIDENCE: friction.ts 5.74→5.0: 4 failing; hammer.ts 2L→L: 5 failing; jet.ts 2g→g: 7 failing; files restored and 94/94 again, 23-10-2026
 
-- [ ] M6: Lucian has seen screenshots of lessons 4-6 and approved them
+- [x] M6: Lucian has seen screenshots of lessons 4-6 and approved them
   MANUAL: Lucian approves the three screenshots
-  EVIDENCE: pending
+  EVIDENCE: Lucian, 23-10-2026: „totul arata foarte bine”
