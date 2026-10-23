@@ -247,6 +247,9 @@ button {
   display: flex;
   gap: 11px;
 }
+.callout[hidden] {
+  display: none;
+}
 .callout .ic {
   font-size: 22px;
   margin-top: 1px;

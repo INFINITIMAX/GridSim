@@ -249,13 +249,15 @@ function build(): UnitScene {
       generator: v(XG + 0.1, AXY + 0.75, gz),
       poles: v(XG - 0.3, AXY + 0.44, gz + 0.44),
       coupling: v(XP + 0.47, AXY, 0),
-      belt: belt ? v(XP, AXY + beltMid, -DZ / 2) : v(XP + 0.47, AXY, 0),
+      belt: v(XP, AXY + beltMid, -DZ / 2),
       frequency: v(CAB_X, SLAB_TOP + 1.25, CAB_Z + 0.29),
       elc: v(CAB_X + 0.45, SLAB_TOP + 0.6, CAB_Z),
       ballast: v(CAB_X, SLAB_TOP + 1.9, CAB_Z),
       village: v(VILLAGE_X, SLAB_TOP + 1.15, 0),
       flywheel: v(XG + 0.95, AXY + 0.5, 0),
     });
+    // only the drive that is shown keeps its callout
+    delete anchors[belt ? "coupling" : "belt"];
   };
 
   const spin = { t: 0, g: 0 };

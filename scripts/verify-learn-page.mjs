@@ -181,9 +181,12 @@ try {
       await expectOut(page, tag, "freq", "50.0");
       await expectOut(page, tag, "need", "2.00");
       if (!(await out(page, "ok").isVisible())) problems.push(`${tag}: 50 Hz mark hidden at 1500 rpm, 4 poles`);
+      const shown = async (part) => page.locator(`#callouts .callout[data-part=${part}]`).isVisible();
+      if (!(await shown("belt")) || (await shown("coupling"))) problems.push(`${tag}: belt mode should show the Belt callout only`);
       await setSelect(page, "drive", "direct");
       await expectOut(page, tag, "gen", "750");
       await expectOut(page, tag, "freq", "25.0");
+      if ((await shown("belt")) || !(await shown("coupling"))) problems.push(`${tag}: direct mode should show the Coupling callout only`);
       if (await out(page, "ok").isVisible()) problems.push(`${tag}: 50 Hz mark shown at 25 Hz`);
       await setSelect(page, "poles", "8");
       await expectOut(page, tag, "freq", "50.0");

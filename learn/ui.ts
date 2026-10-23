@@ -225,6 +225,7 @@ export function placeCallouts(items: CalloutItem[], svg: SVGElement, screen: Rec
   const boxes: Box[] = [];
   for (const item of items) {
     const a = screen[item.part];
+    item.el.hidden = !a;
     if (!a) continue;
     boxes.push({ item, a, w: item.el.offsetWidth, h: item.el.offsetHeight, x: 0, y: 0, side: "top" });
   }
