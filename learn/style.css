@@ -558,7 +558,39 @@ input[type="range"]:focus-visible {
   font-size: 12px;
   color: var(--muted);
 }
-.sl select {
+.outs .wide {
+  grid-column: 1 / -1;
+}
+.outs .v.txt {
+  font-size: 15px;
+}
+.curve {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 12px;
+}
+.curve text {
+  font: 11px "JetBrains Mono", monospace;
+  fill: var(--muted);
+}
+.curve .ax {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1.5;
+}
+.curve .line {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+.curve circle {
+  fill: var(--accent);
+  stroke: var(--card);
+  stroke-width: 1.5;
+}
+.sl select,
+.sl input[type="number"] {
   width: 100%;
   margin-top: 4px;
   padding: 6px 8px;

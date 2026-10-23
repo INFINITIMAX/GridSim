@@ -2,11 +2,13 @@
 import * as THREE from "three";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LESSONS, LESSON_TITLES, UNLOCKED, type Lesson, type SceneId } from "./lessons";
+import { createChart, type ChartScene } from "./scenes/chart";
 import { createIntake, type IntakeScene } from "./scenes/intake";
 import { createNozzle, type NozzleScene } from "./scenes/nozzle";
 import { createPenstock, type PenstockScene } from "./scenes/penstock";
 import { THUMB_MAKERS } from "./scenes/pelton";
 import { createPlant, type PlantScene } from "./scenes/plant";
+import { createRunner, type RunnerScene } from "./scenes/runner";
 import { addLights, disposeObject, setLineResolution, shadowGround, type LessonScene } from "./toon";
 import {
   buildLessonList, createCallouts, hydrateIcons, markCurrentLesson, mountSim, placeCallouts, renderPanel,
@@ -79,7 +81,7 @@ const scene = new THREE.Scene();
 addLights(scene, 10);
 const ground = shadowGround(-0.5);
 scene.add(ground);
-const GROUND_Y: Record<SceneId, number> = { plant: -0.5, intake: -0.9, penstock: -0.3, nozzle: -3.45 };
+const GROUND_Y: Record<SceneId, number> = { plant: -0.5, intake: -0.9, penstock: -0.3, nozzle: -3.45, runner: -3.7, chart: -0.2 };
 
 const camera = new THREE.OrthographicCamera();
 const ELEV = Math.atan(0.85 / Math.SQRT2);
@@ -122,6 +124,24 @@ const getNozzle = (): NozzleScene => {
     scene.add(nozzleScene.group);
   }
   return nozzleScene;
+};
+let runnerScene: RunnerScene | null = null;
+let chartScene: ChartScene | null = null;
+const getRunner = (): RunnerScene => {
+  if (!runnerScene) {
+    runnerScene = createRunner();
+    runnerScene.group.visible = false;
+    scene.add(runnerScene.group);
+  }
+  return runnerScene;
+};
+const getChart = (): ChartScene => {
+  if (!chartScene) {
+    chartScene = createChart();
+    chartScene.group.visible = false;
+    scene.add(chartScene.group);
+  }
+  return chartScene;
 };
 
 let lesson: Lesson | null = null;
@@ -203,16 +223,18 @@ function selectLesson(n: number): void {
   lesson = l;
   const plant = getPlant();
   const intake = getIntake();
-  active = { plant: getPlant, intake: getIntake, penstock: getPenstock, nozzle: getNozzle }[l.scene]();
-  for (const s of [plant, intake, penstockScene, nozzleScene]) {
+  active = { plant: getPlant, intake: getIntake, penstock: getPenstock, nozzle: getNozzle, runner: getRunner, chart: getChart }[l.scene]();
+  for (const s of [plant, intake, penstockScene, nozzleScene, runnerScene, chartScene]) {
     if (!s) continue;
     s.group.visible = s === active;
     s.highlight(null);
   }
   plant.stopDrop();
   penstockScene?.stopHammer();
+  runnerScene?.stopSpin();
   plant.setDims(n === 2);
   penstockScene?.setLesson(n);
+  runnerScene?.setLesson(n);
   ground.position.y = GROUND_Y[l.scene];
 
   history.replaceState(null, "", `?lesson=${n}`);
@@ -236,6 +258,33 @@ function selectLesson(n: number): void {
       dirty = true;
     },
     setDeflector: (on) => getNozzle().setDeflector(on),
+    setSpin: (ratio) => {
+      getRunner().setSpin(ratio);
+      dirty = true;
+    },
+    setExit: (fraction) => {
+      getRunner().setExit(fraction);
+      dirty = true;
+    },
+    setJets: (jets) => {
+      if (l.scene === "chart") getChart().setJets(jets);
+      else getRunner().setJets(jets);
+      updateCallouts();
+      dirty = true;
+    },
+    setFlow: (flow) => {
+      getRunner().setFlow(flow);
+      dirty = true;
+    },
+    setPoint: (headM, nqe) => {
+      getChart().setPoint(headM, nqe);
+      dirty = true;
+    },
+    setRunner: (d1M) => {
+      getChart().setRunner(d1M);
+      updateCallouts();
+      dirty = true;
+    },
   });
   resetView();
 }

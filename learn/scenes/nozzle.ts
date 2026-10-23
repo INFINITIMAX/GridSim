@@ -60,7 +60,7 @@ function wallCut(sign: number): THREE.Group {
 }
 
 /** A water cylinder of length 1 and radius 1 along +x from the origin, with an ink outline; scale it to size. */
-function stream(): THREE.Group {
+export function stream(): THREE.Group {
   const geom = new THREE.CylinderGeometry(1, 1, 1, 20).rotateZ(Math.PI / 2).translate(0.5, 0, 0);
   const g = part(geom, C.water, { edges: false, hull: false, emissive: 0x1d5f80 });
   g.add(new THREE.Mesh(geom.clone().scale(1, 1.1, 1.1), new THREE.MeshBasicMaterial({ color: INK, side: THREE.BackSide })));

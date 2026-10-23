@@ -94,3 +94,35 @@ Tester-ul: `tests/learn/friction.test.ts`, `hammer.test.ts`, `jet.test.ts`, plus
 - **Linia de energie la scara reală e invizibilă.** O pierdere de 1,6 % din 60 m nu se vede pe ecran. Scena o exagerează vizual (de ex. ×5), iar Specs o declară „not to scale”.
 - **Unda de presiune animată cu viteza reală durează 0,3 s,** prea repede ca să se vadă. Animația e încetinită și o etichetă spune „slowed down”.
 - **Reutilizarea.** Agregatul vine din `scenes/pelton.ts` (`makeUnit`, `makeNozzle`), nu se redesenează.
+
+# Plan: lecțiile 7–9 (din 23-10-2026)
+
+Conținut: `lectia-07.md`, `lectia-08.md`, `lectia-09.md`. Surse noi: S19 (ESHA partea 2, cap. 6) și S20 (HydroGenerate, INL) în `surse.md`. Criterii: `GATES-L7-9.md`. Predări: `docs/handoff/L3-*`.
+
+## Fișiere noi sau schimbate (coder)
+
+```
+learn/sim/bucket.ts     L7: ηh = 2(1−r)r(1+k·cos φ), viteza de ieșire v2, puterea jetului
+learn/sim/efficiency.ts L8: curba RETScreen Pelton, vârful ESHA tab. 6.7
+learn/sim/specific.ts   L9: n_QE, D1 = 0,68·√H/n, verdictul pe benzi (tab. 6.2 + tab. 6.3)
+learn/scenes/runner.ts  rotorul mare (L7: cupă în secțiune, jet, săgeata v2; L8: 1–6 duze în jur)
+learn/scenes/chart.ts   tabla cu harta n_QE–H (L9), rotorul scalat după D1, generatorul
+learn/lessons.ts        L7–L9; UNLOCKED = 9
+learn/ui.ts, learn/main.ts  trei simulatoare noi (L8 cu curba SVG) + legarea scenelor
+```
+
+Tester-ul: `tests/learn/bucket.test.ts`, `efficiency.test.ts`, `specific.test.ts`, plus `lessons.test.ts` extins la 9 lecții. Planner-ul: `scripts/verify-learn-page.mjs`.
+
+## Contractul DOM, extins
+
+- L7: `#sim input[name=ratio|angle]`; `#sim [data-out=u|eta|power|exit]`.
+- L8: `#sim input[name=flow]`, `#sim select[name=jets]` cu valorile `1`–`6`; `#sim [data-out=eta|peak|power]`; `#sim svg[data-curve]` cu un `[data-dot]`.
+- L9: `#sim input[type=number][name=head|flow]`, `#sim select[name=speed]` (`3000|1500|1000|750|600|500`), `#sim select[name=jets]` (`1`–`4`); `#sim [data-out=nqe|d1|verdict]`, cu `d1` gol când Pelton nu se potrivește.
+- Restul contractului (lecțiile 1–6) rămâne neschimbat.
+
+## Riscuri
+
+- **Transcrierea formulei RETScreen** (L8): coeficientul (1,31 + 0,025j) înmulțește puterea. O transcriere greșită dă curbe complet diferite. Testul pe fig. 6.30 (≤ 8 pp) o prinde.
+- **Formula de turație RETScreen** nu se folosește (vezi corecția din `lectia-09.md`).
+- **Viteza rotorului în L7:** animația cu viteza reală (u = 16,7 m/s pe un rotor de ~0,4 m înseamnă ~800 rpm) ar fi un vârtej. Rotația e încetinită și o etichetă spune „slowed down”.
+- **Curba SVG din L8** e prima grafică 2D din pagină. Trebuie să urmeze paleta și tema existente.

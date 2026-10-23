@@ -29,12 +29,15 @@ import stack from "@phosphor-icons/core/assets/regular/stack.svg?raw";
 import warning from "@phosphor-icons/core/assets/regular/warning.svg?raw";
 import waves from "@phosphor-icons/core/assets/regular/waves.svg?raw";
 import type { Fact, Lesson } from "./lessons";
+import { bucketEfficiency, DEFLECTION_DEG, exitSpeedMs, jetPowerKW, K_IDEAL } from "./sim/bucket";
+import { peakFlowRatio, turbineEfficiency } from "./sim/efficiency";
 import { frictionLossM, GROSS_HEAD_M, pipeVelocityMs, reynolds, ROUGHNESS_MM, swameeJainF } from "./sim/friction";
 import { criticalTimeS, PIPES, surgeM, waveSpeedMs, type HammerParams } from "./sim/hammer";
 import { CV, jetFlowLps, jetSpeedMs, NOZZLE_MM } from "./sim/jet";
 import { isCorrectOrder, PLANT_ORDER } from "./sim/order";
 import { powerKW } from "./sim/power";
 import { trapLengthM, widthTooLarge, zankeVdMmS } from "./sim/settling";
+import { fittingTurbines, peltonDiameterM, specificSpeed, type Turbine } from "./sim/specific";
 
 const ICONS: Record<string, string> = {
   "arrow-counter-clockwise": arrowCcw,
@@ -290,6 +293,18 @@ export interface SimHooks {
   /** Spear opening of lesson 6, 0..1. */
   setOpening(opening: number): void;
   setDeflector(on: boolean): void;
+  /** Lesson 7: bucket speed over jet speed, 0..1. */
+  setSpin(ratio: number): void;
+  /** Lesson 7: speed of the water leaving the bucket over jet speed, 0..1. */
+  setExit(fraction: number): void;
+  /** Lessons 8 and 9: number of jets. */
+  setJets(jets: number): void;
+  /** Lesson 8: flow over design flow, 0..1. */
+  setFlow(flow: number): void;
+  /** Lesson 9: moves the point on the map. */
+  setPoint(headM: number, nqe: number): void;
+  /** Lesson 9: Pelton diameter D1 in m, or null when no Pelton fits. */
+  setRunner(d1M: number | null): void;
 }
 
 interface SliderSpec {
@@ -367,7 +382,10 @@ export function mountSim(host: HTMLElement, lesson: Lesson, hooks: SimHooks): vo
   else if (lesson.sim === "settling") mountSettling(host, hooks);
   else if (lesson.sim === "friction") mountFriction(host, hooks);
   else if (lesson.sim === "hammer") mountHammer(host, hooks);
-  else mountJet(host, hooks);
+  else if (lesson.sim === "jet") mountJet(host, hooks);
+  else if (lesson.sim === "bucket") mountBucket(host, hooks);
+  else if (lesson.sim === "efficiency") mountEfficiency(host, hooks);
+  else mountSpecific(host, hooks);
 }
 
 function selectHtml(name: string, label: string, options: [string, string][]): string {
@@ -670,4 +688,158 @@ function mountJet(host: HTMLElement, hooks: SimHooks): void {
     if (deflector) deflector.checked = false;
     s.reset();
   });
+}
+
+const NET_HEAD_M = 59;
+
+function mountBucket(host: HTMLElement, hooks: SimHooks): void {
+  const v1 = jetSpeedMs(NET_HEAD_M, CV);
+  const flowLps = jetFlowLps(v1, NOZZLE_MM, 1);
+  const specs: SliderSpec[] = [
+    { name: "ratio", label: "Bucket speed ÷ jet speed (u / v₁)", min: 0, max: 1, step: 0.01, value: 0.25, fmt: (v) => v.toFixed(2) },
+    { name: "angle", label: "Deflection angle (θ)", min: 90, max: 180, step: 1, value: DEFLECTION_DEG, fmt: (v) => `${v}°` },
+  ];
+  host.innerHTML =
+    head("Spin the runner", resetBtn) +
+    specs.map(sliderHtml).join("") +
+    `<div class="outs">` +
+    cell("Bucket speed u", "u") + cell("Hydraulic efficiency", "eta") + cell("Power on the buckets", "power", true) +
+    cell("Exit speed v₂", "exit") + `</div>` +
+    `<div class="formula mono">v₁ = ${v1.toFixed(1)} m/s, Q = ${flowLps.toFixed(1)} L/s. Limit: ideal bucket, no friction (k = 1).</div>`;
+  const update = () => {
+    const r = s.get("ratio");
+    const theta = s.get("angle");
+    const eta = bucketEfficiency(r, theta, K_IDEAL);
+    const v2 = exitSpeedMs(v1, r, theta, K_IDEAL);
+    setOut(host, "u", `${(r * v1).toFixed(2)} m/s`);
+    setOut(host, "eta", `${(eta * 100).toFixed(1)} %`);
+    setOut(host, "power", `${(eta * jetPowerKW(flowLps, v1)).toFixed(1)} kW`);
+    setOut(host, "exit", `${v2.toFixed(1)} m/s`);
+    hooks.setSpin(r);
+    hooks.setExit(v2 / v1);
+  };
+  const s = bindSliders(host, specs, update);
+  s.reset();
+  host.querySelector("[data-reset]")?.addEventListener("click", () => s.reset());
+}
+
+// the efficiency curve of lesson 8: flow 0.1..1 on x, efficiency 0..1 on y
+const CURVE = { w: 300, h: 150, left: 36, right: 12, top: 12, bottom: 28 };
+const curveX = (q: number) => CURVE.left + ((q - 0.1) / 0.9) * (CURVE.w - CURVE.left - CURVE.right);
+const curveY = (eta: number) => CURVE.top + (1 - eta) * (CURVE.h - CURVE.top - CURVE.bottom);
+
+function curveHtml(): string {
+  const base = CURVE.h - CURVE.bottom;
+  const label = (x: number, y: number, anchor: string, text: string) =>
+    `<text x="${x}" y="${y}" text-anchor="${anchor}">${text}</text>`;
+  return (
+    `<svg class="curve" data-curve viewBox="0 0 ${CURVE.w} ${CURVE.h}" role="img" aria-label="Efficiency against flow">` +
+    `<path class="ax" d="M${CURVE.left} ${CURVE.top} V${base} H${CURVE.w - CURVE.right}"/><path class="line" d=""/>` +
+    `<circle data-dot r="4.5" cx="0" cy="0"/>` +
+    label(CURVE.left - 5, base + 3, "end", "0") + label(CURVE.left - 5, CURVE.top + 4, "end", "1") +
+    label(curveX(0.1), base + 14, "middle", "0.1") + label(curveX(1), base + 14, "middle", "1") +
+    label(CURVE.w - CURVE.right, CURVE.h - 3, "end", "Q / Qd") + label(4, CURVE.top + 4, "start", "η") +
+    `</svg>`
+  );
+}
+
+function mountEfficiency(host: HTMLElement, hooks: SimHooks): void {
+  const qd = jetFlowLps(jetSpeedMs(NET_HEAD_M, CV), NOZZLE_MM, 1);
+  const specs: SliderSpec[] = [
+    { name: "flow", label: "Flow (% of design flow)", min: 10, max: 100, step: 1, value: 50, fmt: (v) => `${v} %` },
+  ];
+  host.innerHTML =
+    head("Turn down the flow", resetBtn) +
+    specs.map(sliderHtml).join("") +
+    selectHtml("jets", "Number of jets", [1, 2, 3, 4, 5, 6].map((j): [string, string] => [String(j), String(j)])) +
+    `<div class="outs">` + cell("Efficiency η", "eta", true) + cell("Best efficiency at", "peak") + cell("Shaft power", "power") + `</div>` +
+    curveHtml() +
+    `<div class="formula mono">RETScreen curve, peak from ESHA; real curves vary by maker</div>`;
+  const jetsSel = host.querySelector<HTMLSelectElement>('select[name="jets"]');
+  const path = host.querySelector<SVGPathElement>("svg[data-curve] .line");
+  const dot = host.querySelector<SVGCircleElement>("svg[data-curve] [data-dot]");
+  const update = () => {
+    const q = s.get("flow") / 100;
+    const jets = Number(jetsSel?.value ?? "1");
+    const eta = turbineEfficiency(q, jets);
+    setOut(host, "eta", `${(eta * 100).toFixed(1)} %`);
+    setOut(host, "peak", `${(peakFlowRatio(jets) * 100).toFixed(1)} %`);
+    setOut(host, "power", `${powerKW(NET_HEAD_M, qd * q, eta).toFixed(1)} kW`);
+    let d = "";
+    for (let i = 0; i <= 45; i++) {
+      const x = (10 + 2 * i) / 100;
+      d += `${i === 0 ? "M" : "L"}${curveX(x).toFixed(1)} ${curveY(turbineEfficiency(x, jets)).toFixed(1)} `;
+    }
+    path?.setAttribute("d", d);
+    dot?.setAttribute("cx", curveX(q).toFixed(1));
+    dot?.setAttribute("cy", curveY(eta).toFixed(1));
+    hooks.setJets(jets);
+    hooks.setFlow(q);
+  };
+  const s = bindSliders(host, specs, update);
+  jetsSel?.addEventListener("change", update);
+  s.reset();
+  host.querySelector("[data-reset]")?.addEventListener("click", () => {
+    if (jetsSel) jetsSel.value = "1";
+    s.reset();
+  });
+}
+
+const SPEEDS_RPM = [3000, 1500, 1000, 750, 600, 500];
+
+function numberHtml(name: string, label: string, min: number, max: number, step: number, value: number): string {
+  return (
+    `<div class="sl"><div class="row"><label class="h" for="sim-${name}">${esc(label)}</label></div>` +
+    `<input type="number" id="sim-${name}" name="${name}" min="${min}" max="${max}" step="${step}" value="${value}"></div>`
+  );
+}
+
+function verdictText(fit: Turbine[], jets: number): string {
+  if (fit.length === 0) return "No standard runner — try another speed or more jets";
+  const names = fit.map((t) => (t === "pelton" ? `Pelton (${jets} jet${jets === 1 ? "" : "s"})` : t === "francis" ? "Francis" : "Kaplan"));
+  return names.join(", ");
+}
+
+function mountSpecific(host: HTMLElement, hooks: SimHooks): void {
+  host.innerHTML =
+    head("Pick the turbine", resetBtn) +
+    numberHtml("head", "Net head (H), m", 2, 1000, 1, NET_HEAD_M) +
+    numberHtml("flow", "Flow (Q), L/s", 10, 50000, 0.1, 41.9) +
+    selectHtml("speed", "Generator speed", SPEEDS_RPM.map((r): [string, string] => [String(r), `${r} rpm`])) +
+    selectHtml("jets", "Number of Pelton jets", [1, 2, 3, 4].map((j): [string, string] => [String(j), String(j)])) +
+    `<div class="outs">` + cell("Specific speed nQE", "nqe") + cell("Runner diameter D1", "d1") +
+    `<div class="wide"><small class="h">Fits</small><div class="v mono accent txt" data-out="verdict"></div></div></div>` +
+    `<div class="formula mono">First estimate only — makers give the real size.</div>`;
+  const headIn = host.querySelector<HTMLInputElement>('input[name="head"]');
+  const flowIn = host.querySelector<HTMLInputElement>('input[name="flow"]');
+  const speedSel = host.querySelector<HTMLSelectElement>('select[name="speed"]');
+  const jetsSel = host.querySelector<HTMLSelectElement>('select[name="jets"]');
+  if (!headIn || !flowIn || !speedSel || !jetsSel) return;
+  const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
+  const update = () => {
+    const h = clamp(Number(headIn.value), 2, 1000);
+    const q = clamp(Number(flowIn.value), 10, 50000);
+    const rpm = Number(speedSel.value);
+    const jets = Number(jetsSel.value);
+    const nqe = specificSpeed(rpm, q / 1000, h);
+    const fit = fittingTurbines(nqe, h, jets);
+    const d1 = fit.includes("pelton") ? peltonDiameterM(h, rpm) : null;
+    setOut(host, "nqe", nqe.toFixed(4));
+    setOut(host, "d1", d1 === null ? "" : `${d1.toFixed(2)} m`);
+    setOut(host, "verdict", verdictText(fit, jets));
+    hooks.setPoint(h, nqe);
+    hooks.setJets(jets);
+    hooks.setRunner(d1);
+  };
+  const reset = () => {
+    headIn.value = String(NET_HEAD_M);
+    flowIn.value = "41.9";
+    speedSel.value = "750";
+    jetsSel.value = "1";
+    update();
+  };
+  for (const input of [headIn, flowIn]) input.addEventListener("input", update);
+  for (const sel of [speedSel, jetsSel]) sel.addEventListener("change", update);
+  host.querySelector("[data-reset]")?.addEventListener("click", reset);
+  reset();
 }

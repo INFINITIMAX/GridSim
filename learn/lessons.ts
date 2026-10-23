@@ -1,5 +1,6 @@
-// Lesson data for Hydro · Pelton, lessons 1-6. Every text that states something carries the claim IDs
-// from docs/learn/pelton/lectia-0N.md. Rows marked "to find" there (A11, A12, B5 as a claim, C8, F6) are not used.
+// Lesson data for Hydro · Pelton, lessons 1-9. Every text that states something carries the claim IDs
+// from docs/learn/pelton/lectia-0N.md. Rows marked "to find" there (A11, A12, B5 as a claim, C8, F6, G9, I7, and
+// the 1.8-1.9 runaway figure of G8) are not used.
 
 export interface Fact {
   /** Part id in the 3D scene (callouts, parts, steps). */
@@ -11,8 +12,8 @@ export interface Fact {
   claims: string[];
 }
 
-export type SceneId = "plant" | "intake" | "penstock" | "nozzle";
-export type SimId = "order" | "power" | "settling" | "friction" | "hammer" | "jet";
+export type SceneId = "plant" | "intake" | "penstock" | "nozzle" | "runner" | "chart";
+export type SimId = "order" | "power" | "settling" | "friction" | "hammer" | "jet" | "bucket" | "efficiency" | "specific";
 
 export interface Lesson {
   n: number;
@@ -42,7 +43,7 @@ export const LESSON_TITLES: readonly string[] = [
   "The whole chain",
 ];
 
-export const UNLOCKED = 6;
+export const UNLOCKED = 9;
 
 const L1_PARTS: Fact[] = [
   { part: "weir", icon: "waves", label: "Weir & intake", text: "A low wall lifts the water level so part of the stream can enter the intake. The rest flows over.", claims: ["A2", "A3"] },
@@ -273,4 +274,115 @@ const L6: Lesson = {
   callouts: L6_CALLOUTS,
 };
 
-export const LESSONS: readonly Lesson[] = [L1, L2, L3, L4, L5, L6];
+const L7_CALLOUTS: Fact[] = [
+  { part: "bucket", icon: "gear-six", label: "Bucket", text: "A double cup. Its middle ridge splits the jet in two.", claims: ["G1"] },
+  { part: "splitter", icon: "funnel", label: "Splitter", text: "Each half of the jet is turned almost all the way back.", claims: ["G1", "G2"] },
+  { part: "jet", icon: "drop", label: "Jet", text: "Pushes the bucket. The faster the bucket runs away from it, the weaker the push.", claims: ["G3"] },
+  { part: "exit", icon: "arrow-line-right", label: "Exit water", text: "What the water keeps of its speed is lost. At half the jet speed, it simply falls away.", claims: ["G6"] },
+  { part: "runner", icon: "arrow-counter-clockwise", label: "Runner", text: "Best when the buckets move at half the jet speed.", claims: ["G4"] },
+];
+
+const L7: Lesson = {
+  n: 7,
+  title: LESSON_TITLES[6] ?? "",
+  scene: "runner",
+  sim: "bucket",
+  intro: {
+    text: "The jet from lesson 6 hits a ring of double cups. Each cup splits the jet and throws the water back the way it came. The push is strongest when the cup stands still, but then it does no work; when the cup runs as fast as the jet there is no push at all. The best is in the middle: half the jet speed.",
+    claims: ["G1", "G2", "G3", "G4", "G8"],
+  },
+  rows: [
+    { icon: "arrow-counter-clockwise", text: "Split and turned back", claims: ["G1", "G2"] },
+    { icon: "gauge", text: "Best at half the jet speed", claims: ["G4"] },
+    { icon: "drop-half", text: "Leftover speed is lost", claims: ["G6"] },
+  ],
+  parts: L7_CALLOUTS,
+  how: [
+    { part: "jet", icon: "arrow-line-right", label: "Force from the jet", text: "The push on the bucket depends on how fast the jet catches up with it: v₁ − u.", claims: ["G3"] },
+    { part: "runner", icon: "calculator", label: "Power is force times speed", text: "Power = force × u, so it has a peak in the middle, at u = v₁/2.", claims: ["G3", "G4"] },
+    { part: "splitter", icon: "arrow-counter-clockwise", label: "Turned back almost 180°", text: "A jet turned back by almost 180° (in practice about 165°) gives an ideal bucket a maximum hydraulic efficiency of (1 + cos 15°)/2 ≈ 98 %.", claims: ["G2", "G5"] },
+    { part: "runner", icon: "warning", label: "As fast as the jet", text: "If the runner reaches the speed of the jet, the power drops to zero.", claims: ["G8"] },
+  ],
+  specs: [
+    { icon: "ruler", label: "Deflection angle", text: "165°", claims: ["G2"] },
+    { icon: "percent", label: "Design speed ratio", text: "u / √(2gH) = 0.43–0.48", claims: ["G7"] },
+    { icon: "gauge", label: "Best hydraulic efficiency, ideal bucket", text: "98.3 %", claims: ["G5"] },
+  ],
+  callouts: L7_CALLOUTS,
+};
+
+const L8_CALLOUTS: Fact[] = [
+  { part: "runner", icon: "gear-six", label: "Runner", text: "Turns most of the jet's power into shaft power, but never all of it.", claims: ["H3"] },
+  { part: "nozzles", icon: "funnel", label: "Nozzles", text: "One to six jets. With more jets the turbine keeps a good efficiency at lower flows.", claims: ["H4"] },
+  { part: "jet", icon: "drop", label: "Jet", text: "Thinner jet, less water. The efficiency barely drops until the flow gets small.", claims: ["H5"] },
+  { part: "curve", icon: "percent", label: "Curve", text: "Efficiency changes with the flow. One number is not enough.", claims: ["H1"] },
+];
+
+const L8: Lesson = {
+  n: 8,
+  title: LESSON_TITLES[7] ?? "",
+  scene: "runner",
+  sim: "efficiency",
+  intro: {
+    text: "A turbine never turns all of the water's power into shaft power. How much it keeps is its efficiency, and that changes with the flow. A Pelton keeps a high efficiency over a wide range: from full flow down to about a third with one jet, and even lower with several jets.",
+    claims: ["H1", "H3", "H4", "H5"],
+  },
+  rows: [
+    { icon: "percent", text: "Efficiency depends on flow", claims: ["H1"] },
+    { icon: "gauge", text: "Best Pelton: about 0.89–0.90", claims: ["H3"] },
+    { icon: "drop", text: "Flat down to a third of the flow", claims: ["H4", "H5"] },
+  ],
+  parts: L8_CALLOUTS,
+  how: [
+    { part: "curve", icon: "percent", label: "Efficiency", text: "The efficiency of a turbine is its shaft power divided by the hydraulic power, and it depends on the flow.", claims: ["H1"] },
+    { part: "curve", icon: "calculator", label: "The Pelton curve", text: "In the RETScreen model the curve peaks at about 2/3 of the design flow, then falls slowly toward full flow and fast toward small flows.", claims: ["H2", "H7"] },
+    { part: "jet", icon: "drop", label: "Flat down to 60 %", text: "From full flow down to about 60 %, the efficiency changes by only 2–3 %.", claims: ["H5"] },
+    { part: "nozzles", icon: "funnel", label: "More jets", text: "More jets keep the efficiency high at low flows. A turbine with several jets can close some of them.", claims: ["H4", "H6"] },
+  ],
+  specs: [
+    { icon: "gauge", label: "Best efficiency", text: "0.89 with one jet, 0.90 with more", claims: ["H3"] },
+    { icon: "percent", label: "Good range", text: "30–100 % of the flow with one jet, 10–100 % with more", claims: ["H4"] },
+  ],
+  callouts: L8_CALLOUTS,
+};
+
+const L9_CALLOUTS: Fact[] = [
+  { part: "map", icon: "grid-four", label: "Map", text: "One number, the specific speed, sums up head, flow and speed. It tells which runner shape fits.", claims: ["I1"] },
+  { part: "pelton", icon: "drop", label: "Pelton band", text: "High heads, small flows. More jets widen the band.", claims: ["I2", "I3", "I4"] },
+  { part: "francis", icon: "waves", label: "Francis band", text: "Medium heads and flows.", claims: ["I2", "I4"] },
+  { part: "kaplan", icon: "waves", label: "Kaplan band", text: "Low heads, big flows.", claims: ["I2", "I4"] },
+  { part: "runner", icon: "gear-six", label: "Runner", text: "Its size follows from the head and the speed.", claims: ["I5"] },
+  { part: "generator", icon: "lightning", label: "Generator", text: "Turns at a fixed standard speed. The turbine must match it, or a gearbox or belt is needed.", claims: ["I6"] },
+];
+
+const L9: Lesson = {
+  n: 9,
+  title: LESSON_TITLES[8] ?? "",
+  scene: "chart",
+  sim: "specific",
+  intro: {
+    text: "Head, flow and the speed of the generator together decide the runner. Engineers squeeze them into one number, the specific speed: small for high heads and little water (Pelton), larger for medium heads (Francis), largest for low heads and lots of water (Kaplan).",
+    claims: ["I1", "I2", "I4"],
+  },
+  rows: [
+    { icon: "calculator", text: "nQE = n·√Q / (gH)^0.75", claims: ["I1"] },
+    { icon: "grid-four", text: "Each turbine has its band", claims: ["I2", "I4"] },
+    { icon: "plus", text: "More jets, faster runner", claims: ["I3"] },
+  ],
+  parts: L9_CALLOUTS,
+  how: [
+    { part: "map", icon: "calculator", label: "Specific speed", text: "nQE = n·√Q / (gH)^0.75, with n in rev/s. It packs head, flow and speed into one number that describes the runner shape.", claims: ["I1"] },
+    { part: "map", icon: "grid-four", label: "Bands by type", text: "Each turbine type works in a band of specific speed and in a range of heads.", claims: ["I2", "I4"] },
+    { part: "pelton", icon: "plus", label: "More jets", text: "With more jets the runner can be smaller and turn faster.", claims: ["I3"] },
+    { part: "runner", icon: "ruler", label: "Pelton diameter", text: "D1 = 0.68·√H / n, with n in rev/s.", claims: ["I5"] },
+    { part: "generator", icon: "gear-six", label: "Generator speed", text: "The generator turns at a standard speed: 3000, 1500, 1000, 750… rpm at 50 Hz. More in lesson 10.", claims: ["I6"] },
+  ],
+  specs: [
+    { icon: "drop", label: "Pelton", text: "nQE 0.005–0.025 (×√j) · 50–1300 m", claims: ["I2", "I4"] },
+    { icon: "waves", label: "Francis", text: "nQE 0.05–0.33 · 25–350 m", claims: ["I2", "I4"] },
+    { icon: "waves", label: "Kaplan", text: "nQE 0.19–1.55 · 2–40 m", claims: ["I2", "I4"] },
+  ],
+  callouts: L9_CALLOUTS,
+};
+
+export const LESSONS: readonly Lesson[] = [L1, L2, L3, L4, L5, L6, L7, L8, L9];

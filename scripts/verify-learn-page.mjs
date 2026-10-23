@@ -1,4 +1,4 @@
-// Gates L4 / M4: lessons 1-6 of /learn/ in headless Chrome, checked against the DOM contract in docs/learn/pelton/plan.md.
+// Gates L4 / M4 (lessons 4-6) and L7-9 / M4: lessons 1-9 of /learn/ in headless Chrome, checked against the DOM contract in docs/learn/pelton/plan.md.
 // Saves shots/learn-lesson-N.png for Lucian's review.
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
@@ -39,7 +39,7 @@ async function expectOut(page, tag, key, want) {
 const out = (page, key) => page.locator(`#sim [data-out=${key}]`).first();
 
 try {
-  for (const n of [1, 2, 3, 4, 5, 6]) {
+  for (const n of [1, 2, 3, 4, 5, 6, 7, 8, 9]) {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     const errors = [];
     page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
@@ -121,6 +121,59 @@ try {
       await expectOut(page, tag, "flow", "41.9");
       if (!(await out(page, "note").isVisible())) problems.push(`${tag}: deflector note hidden with deflector in`);
       await setCheck(page, "deflector", false);
+    }
+    if (n === 7) {
+      await setRange(page, "ratio", 0.25); await setRange(page, "angle", 165);
+      await expectOut(page, tag, "u", "8.34");
+      await expectOut(page, tag, "eta", "73.7");
+      await expectOut(page, tag, "power", "17.2");
+      await expectOut(page, tag, "exit", "17.1");
+      await setRange(page, "ratio", 0.5);
+      await expectOut(page, tag, "u", "16.67");
+      await expectOut(page, tag, "eta", "98.3");
+      await expectOut(page, tag, "power", "22.9");
+      await expectOut(page, tag, "exit", "4.4");
+      await setRange(page, "angle", 90);
+      await expectOut(page, tag, "eta", "50.0");
+      await setRange(page, "angle", 165); await setRange(page, "ratio", 1);
+      await expectOut(page, tag, "power", "0.0");
+      await setRange(page, "ratio", 0.5);
+    }
+    if (n === 8) {
+      await setRange(page, "flow", 50); await setSelect(page, "jets", "1");
+      await expectOut(page, tag, "eta", "89.0");
+      await expectOut(page, tag, "peak", "66.3");
+      await expectOut(page, tag, "power", "10.8");
+      await setRange(page, "flow", 100);
+      await expectOut(page, tag, "eta", "87.0");
+      await expectOut(page, tag, "power", "21.1");
+      await setRange(page, "flow", 20);
+      await expectOut(page, tag, "eta", "75.2");
+      await setSelect(page, "jets", "2");
+      await expectOut(page, tag, "eta", "77.7");
+      await expectOut(page, tag, "peak", "66.4");
+      if ((await page.locator("#sim svg[data-curve] [data-dot]").count()) !== 1) problems.push(`${tag}: efficiency curve or its dot missing`);
+      await setRange(page, "flow", 50); await setSelect(page, "jets", "1");
+    }
+    if (n === 9) {
+      await setField(page, "#sim input[name=head]", 59); await setField(page, "#sim input[name=flow]", 41.9);
+      await setSelect(page, "speed", "750"); await setSelect(page, "jets", "1");
+      await expectOut(page, tag, "nqe", "0.0217");
+      await expectOut(page, tag, "d1", "0.42");
+      await expectOut(page, tag, "verdict", "Pelton (1 jet)");
+      await setSelect(page, "speed", "1500");
+      await expectOut(page, tag, "nqe", "0.0434");
+      await expectOut(page, tag, "verdict", "No standard runner");
+      if (((await out(page, "d1").textContent()) ?? "").trim() !== "") problems.push(`${tag}: d1 not empty when no Pelton fits`);
+      await setSelect(page, "jets", "4");
+      await expectOut(page, tag, "verdict", "Pelton (4 jets)");
+      await expectOut(page, tag, "d1", "0.21");
+      await setField(page, "#sim input[name=head]", 100); await setField(page, "#sim input[name=flow]", 900); await setSelect(page, "jets", "1");
+      await expectOut(page, tag, "nqe", "0.1353");
+      await expectOut(page, tag, "verdict", "Francis");
+      await setField(page, "#sim input[name=head]", 10); await setField(page, "#sim input[name=flow]", 5000); await setSelect(page, "speed", "500");
+      await expectOut(page, tag, "verdict", "Kaplan");
+      await setField(page, "#sim input[name=head]", 59); await setField(page, "#sim input[name=flow]", 41.9); await setSelect(page, "speed", "750");
     }
 
     if (errors.length) problems.push(`${tag}: console errors: ${errors.slice(0, 3).join(" | ")}`);

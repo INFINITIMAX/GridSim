@@ -9,11 +9,18 @@ import md3 from "../../docs/learn/pelton/lectia-03.md?raw";
 import md4 from "../../docs/learn/pelton/lectia-04.md?raw";
 import md5 from "../../docs/learn/pelton/lectia-05.md?raw";
 import md6 from "../../docs/learn/pelton/lectia-06.md?raw";
+import md7 from "../../docs/learn/pelton/lectia-07.md?raw";
+import md8 from "../../docs/learn/pelton/lectia-08.md?raw";
+import md9 from "../../docs/learn/pelton/lectia-09.md?raw";
 
-const MD: Record<number, string> = { 1: md1, 2: md2, 3: md3, 4: md4, 5: md5, 6: md6 };
+const MD: Record<number, string> = { 1: md1, 2: md2, 3: md3, 4: md4, 5: md5, 6: md6, 7: md7, 8: md8, 9: md9 };
+const ALL = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 // Afirmații fără a doua sursă: nu au voie în UI (plan.md). B5 nu spune „de găsit” în rând, deci o ținem explicit.
-// F6 (exemplul S7) e doar control în teste.
-const BANNED = ["A11", "A12", "B5", "C8", "F6"];
+// F6, G9, I7 (exemplele lucrate din S7 și S19) sunt doar control în teste.
+const BANNED = ["A11", "A12", "B5", "C8", "F6", "G9", "I7"];
+// G8 are rândul parțial „de găsit”: doar valoarea de ambalare 1,8–1,9 (S19 tab. 6.6). Restul afirmației (puterea e zero la u = v₁)
+// e consecință a G3 și are voie în UI; partea „de găsit” nu are voie pe ecran (verificat mai jos).
+const PARTIAL = ["G8"];
 
 function facts(l: Lesson): Fact[] {
   return [...l.rows, ...l.parts, ...l.how, ...l.specs, ...l.callouts];
@@ -35,16 +42,16 @@ describe("structura lecțiilor", () => {
     for (const t of LESSON_TITLES) expect(t.trim()).not.toBe("");
   });
 
-  it("primele 6 lecții sunt deblocate și au date; titlul lecției n e LESSON_TITLES[n-1]", () => {
-    expect(UNLOCKED).toBe(6);
-    expect(LESSONS).toHaveLength(6);
+  it("primele 9 lecții sunt deblocate și au date; titlul lecției n e LESSON_TITLES[n-1]", () => {
+    expect(UNLOCKED).toBe(9);
+    expect(LESSONS).toHaveLength(9);
     LESSONS.forEach((l, i) => {
       expect(l.n).toBe(i + 1);
       expect(l.title).toBe(LESSON_TITLES[i]);
     });
   });
 
-  it.each([0, 1, 2, 3, 4, 5])("lecția %i: >= 4 callout-uri și cele 4 tab-uri nevide", (i) => {
+  it.each(ALL)("lecția %i: >= 4 callout-uri și cele 4 tab-uri nevide", (i) => {
     const l = LESSONS[i]!;
     expect(l.callouts.length).toBeGreaterThanOrEqual(4);
     expect(l.rows.length).toBeGreaterThan(0); // Overview
@@ -71,19 +78,39 @@ describe("integritatea afirmațiilor", () => {
     expect(claimRow(md6, "F6")).toContain("de găsit");
   });
 
-  it.each([0, 1, 2, 3, 4, 5])("lecția %i: fiecare ID folosit are rând în tabel și nu e „de găsit”", (i) => {
+  it("controlul testului: rândurile G9 și I7 există și conțin „de găsit”", () => {
+    expect(claimRow(md7, "G9")).toContain("de găsit");
+    expect(claimRow(md9, "I7")).toContain("de găsit");
+  });
+
+  it("controlul testului: rândul G8 există și conține „de găsit” (de aceea e în lista PARTIAL)", () => {
+    expect(claimRow(md7, "G8")).toContain("de găsit");
+  });
+
+  it.each(ALL)("lecția %i: fiecare ID folosit are rând în tabel și nu e „de găsit”", (i) => {
     const l = LESSONS[i]!;
     const ids = usedClaims(l);
     expect(ids.length).toBeGreaterThan(0);
     for (const id of ids) {
       const row = claimRow(MD[l.n]!, id);
       expect(row, `L${l.n}: ${id} lipsește din tabel`).toBeDefined();
-      expect(row, `L${l.n}: ${id} e „de găsit”`).not.toContain("de găsit");
+      if (!PARTIAL.includes(id)) expect(row, `L${l.n}: ${id} e „de găsit”`).not.toContain("de găsit");
     }
   });
 
-  it("afirmațiile interzise (A11, A12, B5, C8, F6) nu apar nicăieri", () => {
+  it("afirmațiile interzise (A11, A12, B5, C8, F6, G9, I7) nu apar nicăieri", () => {
     const all = LESSONS.flatMap(usedClaims);
     for (const id of BANNED) expect(all).not.toContain(id);
+  });
+
+  it("partea „de găsit” din G8 (ambalarea 1,8–1,9 × turația nominală) nu apare în textele lecției 7", () => {
+    const text = [LESSONS[6]!.intro.text, ...facts(LESSONS[6]!).map((f) => f.text)].join("\n");
+    expect(text).not.toMatch(/1[.,]8/);
+    expect(text).not.toMatch(/1[.,]9/);
+  });
+
+  it.each([6, 7, 8])("lecția %i: textele callout-urilor sunt cele din tabelul „Callout-uri” al documentului, verbatim", (i) => {
+    const l = LESSONS[i]!;
+    for (const c of l.callouts) expect(MD[l.n]!, `L${l.n}: "${c.text}"`).toContain(`| ${c.text} |`);
   });
 });
