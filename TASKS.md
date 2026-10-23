@@ -69,3 +69,15 @@ Criterii: `docs/learn/pelton/GATES-L10-12.md`; predări: `docs/handoff/L4-*`.
 | L4-b | Testele (după specificație, în paralel cu coder-ul) | tester | gata: suita completă 522/522, 3 mutații prinse |
 | L4-c | Review | reviewer | ACCEPTAT 23-10-2026, doar neblocante |
 | L4-d | verify-learn-page extins la 1–12, rulare gate-uri, capturi | planner | M0–M6 verzi; M6 APROBAT de Lucian 23-10-2026 |
+
+### Varianta de telefon (din 23-10-2026)
+
+Spec: `docs/learn/pelton/mobil.md`; predări: `docs/handoff/L5-*`. Pagina e live la https://grid-sim-ebon.vercel.app/learn/ (Vercel, `vercel.json`).
+
+| # | Task | Cine | Stare |
+|---|---|---|---|
+| L5-0 | Spec mobil, brief-uri | planner | gata 23-10-2026 |
+| L5-a | Layout „stack” sub 1100 px | coder | gata 23-10-2026 (slider-e 40 px, fix planner) |
+| L5-b | `scripts/verify-learn-mobile.mjs` (după spec) | tester | gata; a prins slider-ele de 28 px |
+| L5-c | Review | reviewer | ACCEPTAT 23-10-2026, doar neblocante |
+| L5-d | Rulare desktop + mobil, capturi, aprobarea lui Lucian | planner | desktop și mobil verzi; aștept aprobarea pe telefon real |

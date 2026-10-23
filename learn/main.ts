@@ -159,21 +159,37 @@ let active: LessonScene | null = null;
 let callouts: CalloutItem[] = [];
 let tab: TabId = "overview";
 
+// Stack mode (narrow screens): the canvas is a box in the page, callouts are hidden.
+const stackMq = matchMedia("(max-width: 1099px)");
+
+function viewport(): { w: number; h: number } {
+  return stackMq.matches ? { w: canvas.clientWidth, h: canvas.clientHeight } : { w: innerWidth, h: innerHeight };
+}
+
+function resizeRenderer(): void {
+  if (stackMq.matches) {
+    canvas.style.width = "";
+    canvas.style.height = "";
+    renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+  } else {
+    renderer.setSize(innerWidth, innerHeight);
+  }
+}
+
 function sceneArea(): Area {
-  const W = innerWidth;
-  const H = innerHeight;
+  const { w: W, h: H } = viewport();
+  if (stackMq.matches) return { left: 0, right: W, top: 0, bottom: H, bottomLeft: H };
   const left = 290;
   const right = Math.max(left + 300, W - 440);
   return { left, right, top: 96, bottom: H - 30, bottomLeft: H - 220 };
 }
 
 function fit(): void {
-  const W = innerWidth;
-  const H = innerHeight;
+  const { w: W, h: H } = viewport();
   const area = sceneArea();
   const ext = active?.extent ?? { w: 12, h: 9 };
   // the callout rows take a band above and below the object
-  const band = callouts.length ? 118 : 0;
+  const band = callouts.length && !stackMq.matches ? 118 : 0;
   const top = area.top + band;
   const bottom = area.bottom - band;
   const scale = Math.min((area.right - area.left) / ext.w, (bottom - top) / ext.h) * 0.95 * view.zoom;
@@ -200,7 +216,7 @@ function placeCamera(): void {
 }
 
 function updateCallouts(): void {
-  if (!active) return;
+  if (!active || stackMq.matches) return;
   const screen: Record<string, [number, number]> = {};
   for (const [id, p] of Object.entries(active.anchors)) {
     const q = p.clone().project(camera);
@@ -253,6 +269,7 @@ function selectLesson(n: number): void {
   history.replaceState(null, "", `?lesson=${n}`);
   renderProgress(progressHost, n);
   markCurrentLesson(listHost, n);
+  centerCurrentLesson();
   tab = "overview";
   showPanel();
   callouts = createCallouts(calloutHost, l.callouts);
@@ -334,6 +351,16 @@ function selectLesson(n: number): void {
     },
   });
   resetView();
+}
+
+// In stack mode the lesson list scrolls sideways; bring the current lesson to the middle.
+function centerCurrentLesson(): void {
+  if (!stackMq.matches) return;
+  const cur = listHost.querySelector<HTMLElement>(".lesson.on");
+  if (!cur) return;
+  const h = listHost.getBoundingClientRect();
+  const c = cur.getBoundingClientRect();
+  listHost.scrollLeft += c.left - h.left - (listHost.clientWidth - c.width) / 2;
 }
 
 function showPanel(): void {
@@ -437,9 +464,10 @@ panBtn.addEventListener("click", () => {
 });
 
 window.addEventListener("resize", () => {
-  renderer.setSize(innerWidth, innerHeight);
+  resizeRenderer();
   drawTraces();
   refreshView();
+  centerCurrentLesson();
 });
 
 // ---------- loop ----------
@@ -450,7 +478,8 @@ function tick(now: number): void {
   last = now;
   const animating = active?.update(dt) ?? false;
   if (dirty || animating) {
-    setLineResolution(innerWidth, innerHeight);
+    const v = viewport();
+    setLineResolution(v.w, v.h);
     renderer.render(scene, camera);
     dirty = false;
   }
@@ -462,7 +491,7 @@ function tick(now: number): void {
 async function boot(): Promise<void> {
   hydrateIcons(document);
   drawTraces();
-  renderer.setSize(innerWidth, innerHeight);
+  resizeRenderer();
   await Promise.allSettled([
     document.fonts.load('600 40px "Barlow Semi Condensed"'),
     document.fonts.load('700 40px "Barlow Semi Condensed"'),
@@ -472,8 +501,10 @@ async function boot(): Promise<void> {
   const asked = Number(new URLSearchParams(location.search).get("lesson"));
   selectLesson(Number.isInteger(asked) && asked >= 1 && asked <= UNLOCKED ? asked : 1);
   await document.fonts.ready;
+  resizeRenderer();
   refreshView();
-  setLineResolution(innerWidth, innerHeight);
+  const v = viewport();
+  setLineResolution(v.w, v.h);
   renderer.render(scene, camera);
   dirty = false;
   requestAnimationFrame(tick);

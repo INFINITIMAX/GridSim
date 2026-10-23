@@ -14,7 +14,15 @@
   </head>
   <body>
     <svg id="traces" aria-hidden="true"></svg>
-    <canvas id="gl"></canvas>
+    <div id="stage">
+      <canvas id="gl"></canvas>
+      <div class="sctl">
+        <button type="button" id="btn-pan" aria-label="Pan" aria-pressed="false" data-icon="arrows-out-cardinal"></button>
+        <button type="button" id="btn-in" aria-label="Zoom in" data-icon="plus"></button>
+        <button type="button" id="btn-out" aria-label="Zoom out" data-icon="minus"></button>
+        <button type="button" id="btn-reset" aria-label="Reset view" data-icon="arrow-counter-clockwise"></button>
+      </div>
+    </div>
     <svg id="leaders" aria-hidden="true"></svg>
 
     <header class="brand">
@@ -31,13 +39,6 @@
       <div class="lbl h">Lessons</div>
       <div class="strip" id="lesson-list"></div>
     </nav>
-
-    <div class="sctl">
-      <button type="button" id="btn-pan" aria-label="Pan" aria-pressed="false" data-icon="arrows-out-cardinal"></button>
-      <button type="button" id="btn-in" aria-label="Zoom in" data-icon="plus"></button>
-      <button type="button" id="btn-out" aria-label="Zoom out" data-icon="minus"></button>
-      <button type="button" id="btn-reset" aria-label="Reset view" data-icon="arrow-counter-clockwise"></button>
-    </div>
 
     <aside class="side">
       <section class="card panel">

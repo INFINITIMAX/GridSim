@@ -694,3 +694,188 @@ input[type="range"]:focus-visible {
   border-color: var(--accent);
   box-shadow: inset 3px 0 0 var(--accent);
 }
+
+/* stack mode: phones and tablets, one column, the page scrolls */
+@media (max-width: 1099px) {
+  html {
+    height: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  body {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .brand {
+    order: 1;
+    position: relative;
+    left: auto;
+    top: auto;
+    padding: 14px 16px 12px;
+    gap: 12px;
+  }
+  .brand .logo {
+    width: 40px;
+    height: 40px;
+    border-width: 3px;
+    font-size: 20px;
+    flex: none;
+  }
+  .brand .t1 {
+    font-size: 22px;
+    letter-spacing: 0.12em;
+  }
+  .brand .t2 {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+  }
+  .steps {
+    position: absolute;
+    left: auto;
+    right: 16px;
+    top: 24px;
+  }
+  .steps .lab,
+  .steps .seg {
+    display: none;
+  }
+
+  .lessons {
+    order: 2;
+    position: relative;
+    z-index: 1;
+    left: auto;
+    top: auto;
+    bottom: auto;
+    width: auto;
+    margin: 0 16px 12px;
+    overflow: visible;
+  }
+  .lessons .lbl {
+    display: none;
+  }
+  .strip {
+    position: relative;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 6px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .lesson {
+    width: 190px;
+    height: auto;
+    min-height: 48px;
+    padding: 6px 10px 6px 8px;
+  }
+  .lesson img {
+    display: none;
+  }
+  .lesson .h {
+    line-height: 1.2;
+  }
+
+  #stage {
+    order: 3;
+    position: relative;
+    z-index: 1;
+    height: clamp(260px, 55vh, 460px);
+    margin: 0 16px 12px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--card);
+  }
+  #gl {
+    position: absolute;
+  }
+  #leaders,
+  #callouts {
+    display: none;
+  }
+  .sctl {
+    position: absolute;
+    left: auto;
+    right: 8px;
+    bottom: 8px;
+    flex-direction: row;
+  }
+  .sctl button {
+    width: 40px;
+    height: 40px;
+  }
+
+  .side {
+    order: 4;
+    position: relative;
+    right: auto;
+    top: auto;
+    bottom: auto;
+    width: auto;
+    margin: 0 16px;
+  }
+  .panel {
+    flex: none;
+  }
+  .tabs {
+    gap: 20px;
+    padding: 6px 16px 0;
+    overflow-x: auto;
+  }
+  .tabs button {
+    flex: none;
+    white-space: nowrap;
+    padding: 10px 0 12px;
+  }
+  .body {
+    padding: 16px;
+    overflow: visible;
+    flex: none;
+  }
+  .try {
+    max-height: none;
+    overflow: visible;
+    padding: 14px 16px 16px;
+  }
+  .ibtn {
+    width: 40px;
+    height: 40px;
+  }
+  input[type="range"] {
+    height: 40px;
+  }
+  .sl select,
+  .sl input[type="number"] {
+    min-height: 44px;
+    padding: 8px 10px;
+    font-size: 16px;
+  }
+  .chk {
+    min-height: 40px;
+  }
+  .act {
+    min-height: 40px;
+    padding: 8px 12px;
+  }
+  .ordcard {
+    height: 48px;
+  }
+  .ordcard .mv button {
+    width: 40px;
+    height: 40px;
+  }
+
+  .credit {
+    order: 5;
+    position: relative;
+    left: auto;
+    bottom: auto;
+    z-index: 1;
+    margin: 0 16px;
+    padding: 14px 0 24px;
+  }
+}
