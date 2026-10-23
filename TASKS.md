@@ -68,4 +68,4 @@ Criterii: `docs/learn/pelton/GATES-L10-12.md`; predări: `docs/handoff/L4-*`.
 | L4-a | Codul lecțiilor 10–12 (sim, scene, UI) | coder | gata 23-10-2026 |
 | L4-b | Testele (după specificație, în paralel cu coder-ul) | tester | gata: suita completă 522/522, 3 mutații prinse |
 | L4-c | Review | reviewer | ACCEPTAT 23-10-2026, doar neblocante |
-| L4-d | verify-learn-page extins la 1–12, rulare gate-uri, capturi | planner | M0–M5 verzi; M6 = aprobarea lui Lucian |
+| L4-d | verify-learn-page extins la 1–12, rulare gate-uri, capturi | planner | M0–M6 verzi; M6 APROBAT de Lucian 23-10-2026 |

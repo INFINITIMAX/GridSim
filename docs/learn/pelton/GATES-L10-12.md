@@ -33,6 +33,6 @@ Scope: lessons 10-12 (Generator, Load controller, The whole chain) playable on /
   MANUAL: the planner plants each mutation, runs npx vitest run tests/learn, records the failing test names, and restores the file
   EVIDENCE: generator.ts /120 to /60: 7 failing; governor.ts w(2-w) to (2-w): 8 failing; chain.ts 8760 to 8700: 9 failing; files restored, 522/522 green again, 23-10-2026
 
-- [ ] M6: Lucian has seen lessons 10-12 and approved them
+- [x] M6: Lucian has seen lessons 10-12 and approved them
   MANUAL: Lucian approves the three lessons
-  EVIDENCE: pending
+  EVIDENCE: Lucian, 23-10-2026: „ok, imi place”
