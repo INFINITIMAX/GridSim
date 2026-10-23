@@ -33,6 +33,6 @@ Scope: lessons 7-9 (Pelton runner, Efficiency, Speed size choice) playable on /l
   MANUAL: the planner plants each mutation, runs npx vitest run tests/learn, records the failing test names, and restores the file
   EVIDENCE: bucket.ts φ=θ: 9 failing; efficiency.ts coefficient under the power: 16 failing; specific.ts (gH)^0.75→H^0.75: 8 failing; files restored and 187/187 again, 23-10-2026
 
-- [ ] M6: Lucian has seen lessons 7-9 and approved them
+- [x] M6: Lucian has seen lessons 7-9 and approved them
   MANUAL: Lucian approves the three lessons
-  EVIDENCE: pending
+  EVIDENCE: Lucian, 23-10-2026: „aprob”

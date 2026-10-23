@@ -56,4 +56,4 @@ Criterii: `docs/learn/pelton/GATES-L7-9.md`; predări: `docs/handoff/L3-*`. Pach
 | L3-a | Codul lecțiilor 7–9 (sim, scene, UI) | coder | gata 23-10-2026 |
 | L3-b | Testele (după specificație, în paralel cu coder-ul) | tester | gata: 188/188 (cu N2 adăugat de planner), 3 mutații prinse |
 | L3-c | Review | reviewer | ACCEPTAT 23-10-2026, doar neblocante (N1, N2 rezolvate) |
-| L3-d | verify-learn-page extins la 1–9, rulare gate-uri, capturi | planner | M0–M5 trec; M6 = aprobarea lui Lucian |
+| L3-d | verify-learn-page extins la 1–9, rulare gate-uri, capturi | planner | M0–M6 trec; M6 APROBAT de Lucian 23-10-2026 |
