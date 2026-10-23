@@ -1,6 +1,6 @@
-// Lesson data for Hydro · Pelton, lessons 1-9. Every text that states something carries the claim IDs
-// from docs/learn/pelton/lectia-0N.md. Rows marked "to find" there (A11, A12, B5 as a claim, C8, F6, G9, I7, and
-// the 1.8-1.9 runaway figure of G8) are not used.
+// Lesson data for Hydro · Pelton, lessons 1-12. Every text that states something carries the claim IDs
+// from docs/learn/pelton/lectia-NN.md. Rows marked "to find" there (A11, A12, B5 as a claim, C8, F6, G9, I7, J6, K7,
+// L6, and the 1.8-1.9 runaway figure of G8) are not used.
 
 export interface Fact {
   /** Part id in the 3D scene (callouts, parts, steps). */
@@ -12,8 +12,10 @@ export interface Fact {
   claims: string[];
 }
 
-export type SceneId = "plant" | "intake" | "penstock" | "nozzle" | "runner" | "chart";
-export type SimId = "order" | "power" | "settling" | "friction" | "hammer" | "jet" | "bucket" | "efficiency" | "specific";
+export type SceneId = "plant" | "intake" | "penstock" | "nozzle" | "runner" | "chart" | "unit";
+export type SimId =
+  | "order" | "power" | "settling" | "friction" | "hammer" | "jet" | "bucket" | "efficiency" | "specific"
+  | "generator" | "governor" | "chain";
 
 export interface Lesson {
   n: number;
@@ -43,7 +45,7 @@ export const LESSON_TITLES: readonly string[] = [
   "The whole chain",
 ];
 
-export const UNLOCKED = 9;
+export const UNLOCKED = 12;
 
 const L1_PARTS: Fact[] = [
   { part: "weir", icon: "waves", label: "Weir & intake", text: "A low wall lifts the water level so part of the stream can enter the intake. The rest flows over.", claims: ["A2", "A3"] },
@@ -385,4 +387,113 @@ const L9: Lesson = {
   callouts: L9_CALLOUTS,
 };
 
-export const LESSONS: readonly Lesson[] = [L1, L2, L3, L4, L5, L6, L7, L8, L9];
+const L10_CALLOUTS: Fact[] = [
+  { part: "generator", icon: "lightning", label: "Generator", text: "Turns the shaft's rotation into alternating current.", claims: ["J1"] },
+  { part: "poles", icon: "grid-four", label: "Poles", text: "More poles, slower speed for the same 50 Hz.", claims: ["J2", "J3"] },
+  { part: "coupling", icon: "arrow-line-right", label: "Coupling", text: "Same speed on both sides: a direct shaft, with almost no loss.", claims: ["J4"] },
+  { part: "belt", icon: "arrow-counter-clockwise", label: "Belt", text: "Different speeds: pulleys of two sizes step the speed up.", claims: ["J4"] },
+  { part: "frequency", icon: "gauge", label: "Frequency", text: "50 Hz only at the right speed: n = 120·f / p.", claims: ["J2"] },
+];
+
+const L10: Lesson = {
+  n: 10,
+  title: LESSON_TITLES[9] ?? "",
+  scene: "unit",
+  sim: "generator",
+  intro: {
+    text: "The generator's speed decides the frequency. With 4 poles it must turn at exactly 1500 rpm to make 50 Hz. If the turbine runs slower, either the generator gets more poles or a belt steps the speed up.",
+    claims: ["J2", "J3", "J4"],
+  },
+  rows: [
+    { icon: "calculator", text: "n = 120·f / p", claims: ["J2"] },
+    { icon: "gear-six", text: "Micro-hydro: usually 4 poles, 1500 rpm", claims: ["J3"] },
+    { icon: "arrow-line-right", text: "Direct shaft or belt", claims: ["J4"] },
+  ],
+  parts: L10_CALLOUTS,
+  how: [
+    { part: "generator", icon: "lightning", label: "Speed makes frequency", text: "An alternating-current generator makes a frequency proportional to its speed and to its number of poles.", claims: ["J1", "J2"] },
+    { part: "poles", icon: "grid-four", label: "Four poles, 1500 rpm", text: "Micro-hydro usually uses synchronous generators with 4 poles, at 1500 rpm. Generators with more poles are bigger and cost more.", claims: ["J3"] },
+    { part: "coupling", icon: "arrow-line-right", label: "Direct or belt", text: "If turbine and generator turn at the same speed, they are coupled directly. Otherwise, on small machines, a belt steps the speed up.", claims: ["J4"] },
+    { part: "generator", icon: "warning", label: "Running alone", text: "A synchronous generator can run on its own, in an isolated grid. An asynchronous one needs the grid for its excitation.", claims: ["J5"] },
+  ],
+  specs: [
+    { icon: "gauge", label: "Speed at 50 Hz", text: "2 poles 3000 · 4 poles 1500 · 6 poles 1000 · 8 poles 750 · 10 poles 600 · 12 poles 500 rpm", claims: ["J2"] },
+  ],
+  callouts: L10_CALLOUTS,
+};
+
+const L11_CALLOUTS: Fact[] = [
+  { part: "village", icon: "lightning", label: "Village", text: "Lights switch on and off all day. The generator must still see a steady load.", claims: ["K1", "K2"] },
+  { part: "elc", icon: "calculator", label: "ELC", text: "Measures the frequency and sends any power the village does not use to the ballast.", claims: ["K2"] },
+  { part: "ballast", icon: "gauge", label: "Ballast", text: "A resistor that burns the spare power. The water flow never changes.", claims: ["K2"] },
+  { part: "generator", icon: "gear-six", label: "Generator", text: "Its speed sets the frequency. Spare power would speed it up.", claims: ["K1", "K4"] },
+  { part: "flywheel", icon: "arrow-counter-clockwise", label: "Flywheel", text: "Inertia slows speed changes down, but cannot stop them.", claims: ["K5"] },
+];
+
+const L11: Lesson = {
+  n: 11,
+  title: LESSON_TITLES[10] ?? "",
+  scene: "unit",
+  sim: "governor",
+  intro: {
+    text: "In a small isolated grid nobody else holds the frequency. If the village switches its lights off and the turbine keeps its water, the spare power speeds the machine up. A load controller keeps the generator's total load constant: whatever the village does not use goes into a ballast resistor.",
+    claims: ["K1", "K2", "K4"],
+  },
+  rows: [
+    { icon: "gauge", text: "Spare power speeds the machine up", claims: ["K1", "K4"] },
+    { icon: "calculator", text: "ELC: constant load, constant frequency", claims: ["K2"] },
+    { icon: "funnel", text: "Simpler than moving the spear", claims: ["K3"] },
+  ],
+  parts: L11_CALLOUTS,
+  how: [
+    { part: "generator", icon: "gauge", label: "Frequency follows speed", text: "In an isolated grid the frequency follows the turbine's speed. When the load drops, the turbine speeds up.", claims: ["K1"] },
+    { part: "generator", icon: "calculator", label: "Equation of motion", text: "J·dω/dt = T_turbine − T_load.", claims: ["K4"] },
+    { part: "flywheel", icon: "arrow-counter-clockwise", label: "Inertia", text: "The flywheel's inertia slows the change down, but does not stop it.", claims: ["K5"] },
+    { part: "generator", icon: "warning", label: "Runaway", text: "With no control at all, the turbine runs toward its runaway speed.", claims: ["K6"] },
+    { part: "elc", icon: "calculator", label: "The load controller", text: "The ELC keeps the flow constant and moves the spare power into the ballast. In micro-hydro it is simpler and cheaper than a flow regulator.", claims: ["K2", "K3"] },
+  ],
+  specs: [
+    { icon: "gauge", label: "ELC range", text: "Small plants, usually below 100–200 kW", claims: ["K3"] },
+    { icon: "calculator", label: "Our turbine", text: "P₀ = 14.6 kW (lesson 6) · starting time tm = 2 s (model parameter)", claims: ["K4"] },
+  ],
+  callouts: L11_CALLOUTS,
+};
+
+const L12_CALLOUTS: Fact[] = [
+  { part: "stream", icon: "waves", label: "Stream", text: "Starts with ρ·g·Q·H: all the power the falling water could give.", claims: ["L1"] },
+  { part: "penstock", icon: "pipe", label: "Penstock", text: "Friction takes a slice (lesson 4).", claims: ["L1"] },
+  { part: "turbine", icon: "gear-six", label: "Turbine", text: "The biggest slice: no turbine is perfect (lesson 8).", claims: ["L1", "L4"] },
+  { part: "generator", icon: "gauge", label: "Generator", text: "Another slice, larger for small machines.", claims: ["L1", "L4"] },
+  { part: "village", icon: "lightning", label: "Village", text: "What is left, times the hours it is used, is the energy per year.", claims: ["L2"] },
+];
+
+const L12: Lesson = {
+  n: 12,
+  title: LESSON_TITLES[11] ?? "",
+  scene: "plant",
+  sim: "chain",
+  intro: {
+    text: "Follow the power from the stream to the plug. Every step keeps most of it but loses a slice: friction in the pipe, the turbine, the generator. Multiply the efficiencies and you get the overall efficiency; multiply the power by the hours it is really used and you get the energy per year.",
+    claims: ["L1", "L2", "L4"],
+  },
+  rows: [
+    { icon: "calculator", text: "P = ρ·g·Q·H · ηturbine · ηgenerator", claims: ["L1"] },
+    { icon: "percent", text: "Small plants: 50–70 % overall", claims: ["L3"] },
+    { icon: "lightning", text: "kWh per year = kW × 8760 × load factor", claims: ["L2", "L5"] },
+  ],
+  parts: L12_CALLOUTS,
+  how: [
+    { part: "stream", icon: "calculator", label: "Power delivered", text: "The delivered power is the gross hydraulic power minus the pipe losses, times the turbine efficiency and the generator efficiency.", claims: ["L1"] },
+    { part: "turbine", icon: "gear-six", label: "Small machines", text: "Small machines have lower efficiencies than the typical maker figures.", claims: ["L4"] },
+    { part: "generator", icon: "percent", label: "Overall efficiency", text: "That is why the overall efficiency of micro-hydro is 50–70 %.", claims: ["L3"] },
+    { part: "village", icon: "lightning", label: "Energy per year", text: "Energy per year = power × 8760 h × load factor.", claims: ["L2", "L5"] },
+  ],
+  specs: [
+    { icon: "gear-six", label: "Turbine", text: "0.89 (maker, ESHA) vs ~0.75 (small turbine)", claims: ["L4"] },
+    { icon: "lightning", label: "Generator", text: "0.91 vs ~0.80", claims: ["L4"] },
+    { icon: "percent", label: "Overall, micro-hydro", text: "0.5–0.7", claims: ["L3"] },
+  ],
+  callouts: L12_CALLOUTS,
+};
+
+export const LESSONS: readonly Lesson[] = [L1, L2, L3, L4, L5, L6, L7, L8, L9, L10, L11, L12];

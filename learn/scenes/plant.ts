@@ -4,11 +4,15 @@ import {
   ACCENT, at, box, C, cyl, labelSprite, overlayLines, part, setGlow, tube, withThickMul,
   type LessonScene, type Pt,
 } from "../toon";
+import { chainKW } from "../sim/chain";
 import { makeUnit, R, RUN } from "./pelton";
+import { makeHouse } from "./unit";
 
 export interface PlantScene extends LessonScene {
   /** Shows or hides the H and Q dimensions (lesson 2). */
   setDims(on: boolean): void;
+  /** Lesson 12: the energy band along the water's path, from the four powers in kW; null hides it. */
+  setChain(p: { gross: number; net: number; shaft: number; elec: number } | null): void;
   /** Sends a drop along the seven parts, lighting each when the water reaches it. */
   runDrop(onPart: (id: string) => void, onDone: () => void): void;
   /** Stops a running drop without calling its onDone (the lesson changed). */
@@ -178,8 +182,72 @@ function build(): PlantScene {
   qLabel.position.copy(qPos).add(v(0.45, 0.2, 0));
   dims.add(qLabel);
 
+  // --- lesson 12: the energy band, from the intake to the village ---
+  const chain = new THREE.Group();
+  chain.visible = false;
+  group.add(chain);
+  const lift = (p: Pt): THREE.Vector3 => v(p[0], p[1] + 0.45, p[2]);
+  const turbineTop = v(UNIT_X, NOZZLE_Y + 0.45, Z0);
+  const generatorTop = v(X0 + 1.25 * S, NOZZLE_Y + 0.45, Z0);
+  const villagePt = v(poleX - 0.3, gy(-0.9) + 1.2, -0.9);
+  const stages: THREE.Vector3[][] = [
+    [v(-3.4, gy(CZ) + 0.6, CZ), v(-0.35, CY + 0.55, CZ), v(UNIT_X, CY + 0.55, CZ)],
+    [v(UNIT_X, CY + 0.55, CZ), ...pen.slice(1).map(lift)],
+    [lift(pen[pen.length - 1] ?? generatorTerminal), turbineTop, generatorTop],
+    [generatorTop, v(poleX - 0.3, arm1 + 0.15, 3.3), v(poleX - 0.3, arm2 + 0.15, 0.2), villagePt],
+  ];
+  // a thin grey strip leaves the band at each step: pipe, turbine, generator
+  const strips: [THREE.Vector3, THREE.Vector3][] = [
+    [stages[1]?.[0] ?? v(0, 0, 0), v(1, 0.5, 0)],
+    [turbineTop, v(-1, 0.6, 0)],
+    [generatorTop, v(-0.5, 0.6, -1)],
+  ];
+  const STRIP_LEN = 1;
+  const bandMats = [0x2aa4e0, 0x2aa4e0, 0x3c63a8, 0xe8b931, 0x9aa3ad, 0x9aa3ad, 0x9aa3ad].map((c) => new THREE.MeshBasicMaterial({ color: c }));
+  const bandBox = new THREE.BoxGeometry(1, 1, 1);
+  const bandParts: { mesh: THREE.Mesh; idx: number; len: number }[] = [];
+  const addBand = (idx: number, a: THREE.Vector3, b: THREE.Vector3) => {
+    const mesh = new THREE.Mesh(bandBox, bandMats[idx]);
+    mesh.position.copy(a).add(b).multiplyScalar(0.5);
+    mesh.lookAt(b);
+    chain.add(mesh);
+    bandParts.push({ mesh, idx, len: a.distanceTo(b) });
+  };
+  stages.forEach((pts, idx) => {
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1];
+      const b = pts[i];
+      if (a && b) addBand(idx, a, b);
+    }
+  });
+  strips.forEach(([origin, dir], k) => {
+    const d = dir.clone().normalize();
+    addBand(4 + k, origin, origin.clone().addScaledVector(d, STRIP_LEN));
+  });
+  const BAND_MAX = 0.7; // width of the band at the full gross power
+  const REF_GROSS_KW = chainKW(1, "maker").gross;
+  const MIN_STRIP = 0.03;
+  const widthNow = new Array<number>(7).fill(0);
+  const widthTo = new Array<number>(7).fill(0);
+  const applyBand = () => {
+    for (const { mesh, idx, len } of bandParts) {
+      const w = widthNow[idx] ?? 0;
+      mesh.scale.set(w, 0.05, idx < 4 ? len + w * 0.5 : len);
+    }
+  };
+  for (const z of [-0.9, -2]) {
+    const house = tilt(at(makeHouse(), poleX - 0.3, gy(z) - 0.02, z));
+    house.scale.setScalar(0.6);
+    chain.add(house);
+    (parts.village ??= []).push(house);
+  }
+
   // --- anchors for callouts ---
   const anchors: Record<string, THREE.Vector3> = {
+    stream: v(-3.4, gy(CZ) + 0.6, CZ),
+    turbine: turbineTop.clone(),
+    generator: generatorTop.clone(),
+    village: v(poleX - 0.3, gy(-0.9) + 0.8, -0.9),
     weir: v(-3.4, gy(CZ) + 0.45, CZ),
     canal: v(-0.35, CY + 0.3, CZ),
     forebay: v(1.6, CY + 0.5, CZ),
@@ -199,6 +267,9 @@ function build(): PlantScene {
     flow: ["penstock"],
     losses: ["penstock"],
     eff: ["powerhouse"],
+    stream: ["weir", "canal"],
+    turbine: ["powerhouse"],
+    generator: ["powerhouse"],
   };
   let lit: string[] = [];
   const highlight = (id: string | null) => {
@@ -258,7 +329,21 @@ function build(): PlantScene {
   const run = { on: false, s: 0, next: 0, hold: 0, onPart: (_id: string) => {}, onDone: () => {} };
 
   const update = (dt: number): boolean => {
-    if (!run.on) return false;
+    let moved = false;
+    if (chain.visible) {
+      const k = 1 - Math.exp(-12 * dt);
+      for (let i = 0; i < widthTo.length; i++) {
+        const to = widthTo[i] ?? 0;
+        const now = widthNow[i] ?? 0;
+        if (Math.abs(to - now) < 1e-4) widthNow[i] = to;
+        else {
+          widthNow[i] = now + (to - now) * k;
+          moved = true;
+        }
+      }
+      if (moved) applyBand();
+    }
+    if (!run.on) return moved;
     if (run.s < total) {
       run.s = Math.min(total, run.s + SPEED * dt);
       while (run.next < path.length && (cum[run.next] ?? 0) <= run.s) {
@@ -292,6 +377,21 @@ function build(): PlantScene {
     update,
     setDims: (on) => {
       dims.visible = on;
+    },
+    setChain: (p) => {
+      if (!p) {
+        chain.visible = false;
+        return;
+      }
+      const scale = BAND_MAX / REF_GROSS_KW;
+      const loss = (kW: number) => (kW > 1e-6 ? Math.max(MIN_STRIP, kW * scale) : 0);
+      const to = [p.gross * scale, p.net * scale, p.shaft * scale, p.elec * scale, loss(p.gross - p.net), loss(p.net - p.shaft), loss(p.shaft - p.elec)];
+      to.forEach((w, i) => (widthTo[i] = w));
+      if (!chain.visible) {
+        to.forEach((w, i) => (widthNow[i] = w));
+        applyBand();
+        chain.visible = true;
+      }
     },
     stopDrop: () => {
       run.on = false;

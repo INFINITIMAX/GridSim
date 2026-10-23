@@ -579,6 +579,20 @@ input[type="range"]:focus-visible {
   stroke: var(--line);
   stroke-width: 1.5;
 }
+.curve .ref {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+.okline {
+  margin-top: 10px;
+  font-size: 15px;
+  color: var(--ok);
+}
+.okline[hidden] {
+  display: none;
+}
 .curve .line {
   fill: none;
   stroke: var(--ink);

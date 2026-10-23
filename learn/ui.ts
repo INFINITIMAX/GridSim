@@ -30,8 +30,11 @@ import warning from "@phosphor-icons/core/assets/regular/warning.svg?raw";
 import waves from "@phosphor-icons/core/assets/regular/waves.svg?raw";
 import type { Fact, Lesson } from "./lessons";
 import { bucketEfficiency, DEFLECTION_DEG, exitSpeedMs, jetPowerKW, K_IDEAL } from "./sim/bucket";
+import { annualKWh, chainKW, DESIGN_FLOW_LPS, type MachineSet } from "./sim/chain";
 import { peakFlowRatio, turbineEfficiency } from "./sim/efficiency";
 import { frictionLossM, GROSS_HEAD_M, pipeVelocityMs, reynolds, ROUGHNESS_MM, swameeJainF } from "./sim/friction";
+import { frequencyHz, ratioFor50Hz } from "./sim/generator";
+import { ballastKW, frequencyTrace, TM_S } from "./sim/governor";
 import { criticalTimeS, PIPES, surgeM, waveSpeedMs, type HammerParams } from "./sim/hammer";
 import { CV, jetFlowLps, jetSpeedMs, NOZZLE_MM } from "./sim/jet";
 import { isCorrectOrder, PLANT_ORDER } from "./sim/order";
@@ -305,6 +308,24 @@ export interface SimHooks {
   setPoint(headM: number, nqe: number): void;
   /** Lesson 9: Pelton diameter D1 in m, or null when no Pelton fits. */
   setRunner(d1M: number | null): void;
+  /** Lesson 10: shaft or belt, with the belt ratio (>= 1). */
+  setDrive(drive: "direct" | "belt", ratio: number): void;
+  /** Lesson 10: number of poles of the generator. */
+  setPoles(poles: number): void;
+  /** Lesson 10: turbine and generator speeds in rpm. */
+  setSpeeds(turbineRpm: number, genRpm: number): void;
+  /** Lesson 10: the 50 Hz light on the panel. */
+  setFreqOk(ok: boolean): void;
+  /** Lesson 11: village load over P0, 0..1. */
+  setVillage(loadPU: number): void;
+  /** Lesson 11: ballast power over P0, 0..1. */
+  setBallast(pu: number): void;
+  /** Lesson 11: plays the 101 frequency values over about 10 s; `onDone` runs when it ends. */
+  runTrace(hz: number[], onDone: () => void): void;
+  /** Lesson 11: stops a running trace without calling its onDone. */
+  stopRun(): void;
+  /** Lesson 12: the four powers of the chain, in kW. */
+  setChain(p: { gross: number; net: number; shaft: number; elec: number }): void;
 }
 
 interface SliderSpec {
@@ -385,7 +406,10 @@ export function mountSim(host: HTMLElement, lesson: Lesson, hooks: SimHooks): vo
   else if (lesson.sim === "jet") mountJet(host, hooks);
   else if (lesson.sim === "bucket") mountBucket(host, hooks);
   else if (lesson.sim === "efficiency") mountEfficiency(host, hooks);
-  else mountSpecific(host, hooks);
+  else if (lesson.sim === "specific") mountSpecific(host, hooks);
+  else if (lesson.sim === "generator") mountGenerator(host, hooks);
+  else if (lesson.sim === "governor") mountGovernor(host, hooks);
+  else mountChain(host, hooks);
 }
 
 function selectHtml(name: string, label: string, options: [string, string][]): string {
@@ -842,4 +866,191 @@ function mountSpecific(host: HTMLElement, hooks: SimHooks): void {
   for (const sel of [speedSel, jetsSel]) sel.addEventListener("change", update);
   host.querySelector("[data-reset]")?.addEventListener("click", reset);
   reset();
+}
+
+function mountGenerator(host: HTMLElement, hooks: SimHooks): void {
+  const specs: SliderSpec[] = [
+    { name: "ratio", label: "Belt ratio (generator ÷ turbine speed)", min: 1, max: 4, step: 0.1, value: 2, fmt: (v) => v.toFixed(1) },
+  ];
+  host.innerHTML =
+    head("Match the speeds", resetBtn) +
+    selectHtml("turbine", "Turbine speed", SPEEDS_RPM.map((r): [string, string] => [String(r), `${r} rpm`])) +
+    selectHtml("poles", "Generator poles", [2, 4, 6, 8, 10, 12].map((p): [string, string] => [String(p), String(p)])) +
+    selectHtml("drive", "Transmission", [["direct", "Direct shaft"], ["belt", "Belt"]]) +
+    specs.map(sliderHtml).join("") +
+    `<div class="outs">` + cell("Generator speed", "gen") + cell("Frequency", "freq", true) + cell("Ratio needed for 50 Hz", "need") + `</div>` +
+    `<div class="okline h" data-out="ok" role="status" hidden></div>` +
+    `<div class="formula mono">f = p · n / 120. Limit: belt slip and losses ignored.</div>`;
+  const turbineSel = host.querySelector<HTMLSelectElement>('select[name="turbine"]');
+  const polesSel = host.querySelector<HTMLSelectElement>('select[name="poles"]');
+  const driveSel = host.querySelector<HTMLSelectElement>('select[name="drive"]');
+  const ratioIn = host.querySelector<HTMLInputElement>('input[name="ratio"]');
+  const okEl = host.querySelector<HTMLElement>('[data-out="ok"]');
+  if (!turbineSel || !polesSel || !driveSel || !ratioIn || !okEl) return;
+  const update = () => {
+    const turbine = Number(turbineSel.value);
+    const poles = Number(polesSel.value);
+    const belt = driveSel.value === "belt";
+    ratioIn.disabled = !belt;
+    const ratio = belt ? s.get("ratio") : 1;
+    const gen = turbine * ratio;
+    const f = frequencyHz(poles, gen);
+    const ok = Math.abs(f - 50) < 0.5;
+    setOut(host, "gen", `${gen.toFixed(0)} rpm`);
+    setOut(host, "freq", `${f.toFixed(1)} Hz`);
+    setOut(host, "need", ratioFor50Hz(poles, turbine).toFixed(2));
+    okEl.hidden = !ok;
+    okEl.textContent = ok ? "50 Hz ✓" : "";
+    hooks.setDrive(belt ? "belt" : "direct", ratio);
+    hooks.setPoles(poles);
+    hooks.setSpeeds(turbine, gen);
+    hooks.setFreqOk(ok);
+  };
+  const s = bindSliders(host, specs, update);
+  for (const sel of [turbineSel, polesSel, driveSel]) sel.addEventListener("change", update);
+  const defaults = () => {
+    turbineSel.value = "750";
+    polesSel.value = "4";
+    driveSel.value = "belt";
+    s.reset();
+  };
+  host.querySelector("[data-reset]")?.addEventListener("click", defaults);
+  defaults();
+}
+
+// P0 of lesson 11: the power of the turbine at full flow, as in lesson 6
+const P0_KW = powerKW(NET_HEAD_M, DESIGN_FLOW_LPS, 0.6);
+const TRACE_SAMPLES = 100; // the trace has 101 values, 0.1 s apart
+const TRACE_MS = 10000;
+
+// the graph of lesson 11: time 0..10 s on x, frequency 40..100 Hz on y
+const GRAPH = { w: 300, h: 150, left: 36, right: 12, top: 22, bottom: 28 };
+const graphX = (i: number) => GRAPH.left + (i / TRACE_SAMPLES) * (GRAPH.w - GRAPH.left - GRAPH.right);
+const graphY = (hz: number) => GRAPH.top + (1 - (Math.min(100, Math.max(40, hz)) - 40) / 60) * (GRAPH.h - GRAPH.top - GRAPH.bottom);
+
+function graphHtml(): string {
+  const base = GRAPH.h - GRAPH.bottom;
+  const right = GRAPH.w - GRAPH.right;
+  const label = (x: number, y: number, anchor: string, text: string) => `<text x="${x}" y="${y}" text-anchor="${anchor}">${text}</text>`;
+  return (
+    `<svg class="curve" data-curve viewBox="0 0 ${GRAPH.w} ${GRAPH.h}" role="img" aria-label="Frequency against time">` +
+    `<path class="ax" d="M${GRAPH.left} ${GRAPH.top} V${base} H${right}"/>` +
+    `<path class="ref" d="M${GRAPH.left} ${graphY(50)} H${right}"/><path class="line" d=""/>` +
+    label(GRAPH.left - 5, base + 3, "end", "40") + label(GRAPH.left - 5, graphY(50) + 3, "end", "50") +
+    label(GRAPH.left - 5, GRAPH.top + 4, "end", "100") +
+    label(GRAPH.left, base + 14, "middle", "0") + label(right, base + 14, "middle", "10") +
+    label(right, GRAPH.h - 3, "end", "t (s)") + label(4, 10, "start", "f (Hz)") +
+    `</svg>`
+  );
+}
+
+function mountGovernor(host: HTMLElement, hooks: SimHooks): void {
+  const specs: SliderSpec[] = [
+    { name: "load", label: "Village load after the step (% of P₀)", min: 0, max: 100, step: 5, value: 0, fmt: (v) => `${v} %` },
+  ];
+  host.innerHTML =
+    head("Switch off the village", resetBtn) +
+    specs.map(sliderHtml).join("") +
+    `<label class="chk h"><input type="checkbox" name="elc" checked> Load controller (ELC)</label>` +
+    `<div class="acts"><button type="button" class="act primary" data-run>Run 10 s</button></div>` +
+    `<div class="outs">` +
+    cell("Frequency at 1 s", "f1") + cell("Frequency at 10 s", "f10") + cell("Ballast power", "ballast", true) + cell("Village power", "village") + `</div>` +
+    `<div class="warn" data-out="warn" data-claims="K8" role="alert" hidden></div>` +
+    graphHtml() +
+    `<div class="formula mono">P₀ = ${P0_KW.toFixed(1)} kW, tm = ${TM_S} s. Limit: ideal bucket and instant ELC; the real runaway speed is a bit lower.</div>`;
+  const elcBox = host.querySelector<HTMLInputElement>('input[name="elc"]');
+  const run = host.querySelector<HTMLButtonElement>("[data-run]");
+  const path = host.querySelector<SVGPathElement>("svg[data-curve] .line");
+  if (!elcBox || !run || !path) return;
+  let hz: number[] = [];
+  let raf = 0;
+  let running = false;
+  const draw = (upTo: number) => {
+    let d = "";
+    for (let i = 0; i <= upTo; i++) d += `${i === 0 ? "M" : "L"}${graphX(i).toFixed(1)} ${graphY(hz[i] ?? 50).toFixed(1)} `;
+    path.setAttribute("d", d);
+  };
+  const stop = () => {
+    running = false;
+    cancelAnimationFrame(raf);
+    run.disabled = false;
+    hooks.stopRun();
+  };
+  const update = () => {
+    stop();
+    const loadPU = s.get("load") / 100;
+    const elc = elcBox.checked;
+    hz = frequencyTrace(loadPU, elc, TM_S);
+    const ballast = ballastKW(P0_KW, loadPU, elc);
+    setOut(host, "f1", `${(hz[10] ?? 50).toFixed(1)} Hz`);
+    setOut(host, "f10", `${(hz[TRACE_SAMPLES] ?? 50).toFixed(1)} Hz`);
+    setOut(host, "ballast", `${ballast.toFixed(1)} kW`);
+    setOut(host, "village", `${(loadPU * P0_KW).toFixed(1)} kW`);
+    setWarn(host, "Frequency far above 50 Hz: lamps and motors would be damaged.", Math.max(...hz) > 55);
+    draw(TRACE_SAMPLES);
+    hooks.setVillage(loadPU);
+    hooks.setBallast(ballast / P0_KW);
+  };
+  const s = bindSliders(host, specs, update);
+  elcBox.addEventListener("change", update);
+  run.addEventListener("click", () => {
+    run.disabled = true;
+    running = true;
+    const t0 = performance.now();
+    draw(0);
+    const frame = (now: number) => {
+      const k = Math.min(1, (now - t0) / TRACE_MS);
+      draw(Math.floor(k * TRACE_SAMPLES));
+      if (k < 1 && running && path.isConnected) raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    hooks.runTrace(hz, () => {
+      running = false;
+      cancelAnimationFrame(raf);
+      draw(TRACE_SAMPLES);
+      run.disabled = false;
+    });
+  });
+  host.querySelector("[data-reset]")?.addEventListener("click", () => {
+    elcBox.checked = true;
+    s.reset();
+  });
+  s.reset();
+}
+
+function mountChain(host: HTMLElement, hooks: SimHooks): void {
+  const flowSpec: SliderSpec = { name: "flow", label: "Flow (% of design flow)", min: 10, max: 100, step: 1, value: 100, fmt: (v) => `${v} %` };
+  const loadSpec: SliderSpec = { name: "load", label: "Load factor", min: 10, max: 100, step: 5, value: 40, fmt: (v) => `${v} %` };
+  host.innerHTML =
+    head("Follow the energy", resetBtn) +
+    sliderHtml(flowSpec) +
+    selectHtml("machines", "Machines", [
+      ["maker", "Maker's best: turbine curve, generator 0.91"],
+      ["small", "Small micro set: turbine 0.75, generator 0.80"],
+    ]) +
+    sliderHtml(loadSpec) +
+    `<div class="outs">` +
+    cell("Gross power", "gross") + cell("After the pipe", "net") + cell("At the shaft", "shaft") + cell("Electric", "elec", true) +
+    cell("Overall efficiency", "overall") + cell("Energy per year", "energy") + `</div>` +
+    `<div class="formula mono">Fixed: H = ${GROSS_HEAD_M} m, PE pipe 200 mm × 150 m. Limit: no transformer, cable or controller losses; set efficiencies, not measured.</div>`;
+  const machinesSel = host.querySelector<HTMLSelectElement>('select[name="machines"]');
+  const update = () => {
+    const set: MachineSet = machinesSel?.value === "small" ? "small" : "maker";
+    const c = chainKW(s.get("flow") / 100, set);
+    const kWh = annualKWh(c.elec, s.get("load") / 100);
+    setOut(host, "gross", `${c.gross.toFixed(1)} kW`);
+    setOut(host, "net", `${c.net.toFixed(1)} kW`);
+    setOut(host, "shaft", `${c.shaft.toFixed(1)} kW`);
+    setOut(host, "elec", `${c.elec.toFixed(1)} kW`);
+    setOut(host, "overall", `${(c.overall * 100).toFixed(1)} %`);
+    setOut(host, "energy", `${(Math.round(kWh / 100) * 100).toLocaleString("en-US")} kWh/yr`);
+    hooks.setChain(c);
+  };
+  const s = bindSliders(host, [flowSpec, loadSpec], update);
+  machinesSel?.addEventListener("change", update);
+  s.reset();
+  host.querySelector("[data-reset]")?.addEventListener("click", () => {
+    if (machinesSel) machinesSel.value = "maker";
+    s.reset();
+  });
 }

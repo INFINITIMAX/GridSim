@@ -1,4 +1,4 @@
-// Gates L4 / M4 (lessons 4-6) and L7-9 / M4: lessons 1-9 of /learn/ in headless Chrome, checked against the DOM contract in docs/learn/pelton/plan.md.
+// Gates M4 for lessons 4-6, 7-9 and 10-12: all 12 lessons of /learn/ in headless Chrome, checked against the DOM contract in docs/learn/pelton/plan.md.
 // Saves shots/learn-lesson-N.png for Lucian's review.
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
@@ -39,7 +39,7 @@ async function expectOut(page, tag, key, want) {
 const out = (page, key) => page.locator(`#sim [data-out=${key}]`).first();
 
 try {
-  for (const n of [1, 2, 3, 4, 5, 6, 7, 8, 9]) {
+  for (const n of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     const errors = [];
     page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
@@ -174,6 +174,62 @@ try {
       await setField(page, "#sim input[name=head]", 10); await setField(page, "#sim input[name=flow]", 5000); await setSelect(page, "speed", "500");
       await expectOut(page, tag, "verdict", "Kaplan");
       await setField(page, "#sim input[name=head]", 59); await setField(page, "#sim input[name=flow]", 41.9); await setSelect(page, "speed", "750");
+    }
+    if (n === 10) {
+      await setSelect(page, "turbine", "750"); await setSelect(page, "poles", "4"); await setSelect(page, "drive", "belt"); await setRange(page, "ratio", 2);
+      await expectOut(page, tag, "gen", "1500");
+      await expectOut(page, tag, "freq", "50.0");
+      await expectOut(page, tag, "need", "2.00");
+      if (!(await out(page, "ok").isVisible())) problems.push(`${tag}: 50 Hz mark hidden at 1500 rpm, 4 poles`);
+      await setSelect(page, "drive", "direct");
+      await expectOut(page, tag, "gen", "750");
+      await expectOut(page, tag, "freq", "25.0");
+      if (await out(page, "ok").isVisible()) problems.push(`${tag}: 50 Hz mark shown at 25 Hz`);
+      await setSelect(page, "poles", "8");
+      await expectOut(page, tag, "freq", "50.0");
+      await expectOut(page, tag, "need", "1.00");
+      await setSelect(page, "poles", "6"); await setSelect(page, "drive", "belt"); await setRange(page, "ratio", 2);
+      await expectOut(page, tag, "freq", "75.0");
+      await expectOut(page, tag, "need", "1.33");
+      await setSelect(page, "poles", "4");
+    }
+    if (n === 11) {
+      await setRange(page, "load", 0); await setCheck(page, "elc", false);
+      await expectOut(page, tag, "f1", "69.7");
+      await expectOut(page, tag, "f10", "99.7");
+      await expectOut(page, tag, "ballast", "0.0");
+      if (!(await out(page, "warn").isVisible())) problems.push(`${tag}: over-frequency warning hidden without ELC`);
+      await setRange(page, "load", 50);
+      await expectOut(page, tag, "f1", "60.9");
+      await expectOut(page, tag, "f10", "84.7");
+      await setCheck(page, "elc", true);
+      await expectOut(page, tag, "f10", "50.0");
+      await expectOut(page, tag, "ballast", "7.3");
+      await expectOut(page, tag, "village", "7.3");
+      if (await out(page, "warn").isVisible()) problems.push(`${tag}: over-frequency warning shown with ELC`);
+      await setRange(page, "load", 0);
+      await expectOut(page, tag, "ballast", "14.6");
+      if ((await page.locator("#sim svg[data-curve]").count()) !== 1) problems.push(`${tag}: frequency chart missing`);
+      if ((await page.locator("#sim [data-run]").count()) < 1) problems.push(`${tag}: no run button`);
+    }
+    if (n === 12) {
+      await setRange(page, "flow", 100); await setSelect(page, "machines", "maker"); await setRange(page, "load", 40);
+      await expectOut(page, tag, "gross", "24.7");
+      await expectOut(page, tag, "net", "24.2");
+      await expectOut(page, tag, "shaft", "21.1");
+      await expectOut(page, tag, "elec", "19.2");
+      await expectOut(page, tag, "overall", "77.7");
+      await expectOut(page, tag, "energy", "67,200");
+      await setSelect(page, "machines", "small");
+      await expectOut(page, tag, "shaft", "18.2");
+      await expectOut(page, tag, "elec", "14.5");
+      await expectOut(page, tag, "overall", "58.9");
+      await expectOut(page, tag, "energy", "50,900");
+      await setSelect(page, "machines", "maker"); await setRange(page, "flow", 50);
+      await expectOut(page, tag, "elec", "9.9");
+      await expectOut(page, tag, "overall", "80.6");
+      await expectOut(page, tag, "energy", "34,800");
+      await setRange(page, "flow", 100);
     }
 
     if (errors.length) problems.push(`${tag}: console errors: ${errors.slice(0, 3).join(" | ")}`);

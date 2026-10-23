@@ -126,3 +126,34 @@ Tester-ul: `tests/learn/bucket.test.ts`, `efficiency.test.ts`, `specific.test.ts
 - **Formula de turație RETScreen** nu se folosește (vezi corecția din `lectia-09.md`).
 - **Viteza rotorului în L7:** animația cu viteza reală (u = 16,7 m/s pe un rotor de ~0,4 m înseamnă ~800 rpm) ar fi un vârtej. Rotația e încetinită și o etichetă spune „slowed down”.
 - **Curba SVG din L8** e prima grafică 2D din pagină. Trebuie să urmeze paleta și tema existente.
+
+# Plan: lecțiile 10–12 (din 23-10-2026)
+
+Conținut: `lectia-10.md`, `lectia-11.md`, `lectia-12.md`. Surse noi: S21 (OpenStax) și pasajele S13 pentru L10–L12, trecute în `surse.md`. S5 și S6 nu se mai pot descărca și sunt înlocuite. Criterii: `GATES-L10-12.md`. Predări: `docs/handoff/L4-*`.
+
+## Fișiere noi sau schimbate (coder)
+
+```
+learn/sim/generator.ts  L10: f = p·n/120, raportul pentru 50 Hz
+learn/sim/governor.ts   L11: w(t) cu RK4, P_t/P₀ = w(2−w), cu/fără ELC
+learn/sim/chain.ts      L12: lanțul brut → net → ax → electric, kWh/an
+learn/scenes/unit.ts    agregatul cu cuplaj/curea (L10) și cu satul, ELC-ul și balastul (L11)
+learn/scenes/plant.ts   L12: banda de energie peste centrala din L1 (`setChain`)
+learn/lessons.ts        L10–L12; UNLOCKED = 12
+learn/ui.ts, learn/main.ts  trei simulatoare noi (L11 cu grafic SVG f(t)) + legarea scenelor
+```
+
+Tester-ul scrie `tests/learn/generator.test.ts`, `governor.test.ts`, `chain.test.ts` și extinde `lessons.test.ts` la 12 lecții. Planner-ul extinde `scripts/verify-learn-page.mjs`.
+
+## Contractul DOM, extins
+
+- L10: `#sim select[name=turbine|poles|drive]`, `#sim input[name=ratio]`; `#sim [data-out=gen|freq|need|ok]`, cu `ok` vizibil doar la |f − 50| < 0,5.
+- L11: `#sim input[name=load]`, `#sim input[name=elc]` (checkbox), butonul `#sim [data-run]`; `#sim [data-out=f1|f10|ballast|village|warn]`; `#sim svg[data-curve]`. Ieșirile se completează **imediat** la schimbarea intrărilor, din aceeași simulare. Butonul doar animă scena și graficul.
+- L12: `#sim input[name=flow|load]`, `#sim select[name=machines]` (`maker|small`); `#sim [data-out=gross|net|shaft|elec|overall|energy]`.
+- Restul contractului (lecțiile 1–9) rămâne neschimbat.
+
+## Riscuri
+
+- **Frecvența fără ELC** urcă spre 100 Hz în model (cupă ideală). Nota de limită spune că turația reală de ambalare e puțin mai mică (ESHA: 1,8–1,9×).
+- **Banda de energie din L12** se pune peste scena din L1. Lecția 1 nu trebuie să se schimbe: banda e vizibilă doar în L12.
+- **Simularea L11** rulează 10 000 de pași RK4 la fiecare schimbare de intrare, ceea ce e neglijabil (sub 5 ms).

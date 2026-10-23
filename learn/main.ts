@@ -9,6 +9,7 @@ import { createPenstock, type PenstockScene } from "./scenes/penstock";
 import { THUMB_MAKERS } from "./scenes/pelton";
 import { createPlant, type PlantScene } from "./scenes/plant";
 import { createRunner, type RunnerScene } from "./scenes/runner";
+import { createUnit, type UnitScene } from "./scenes/unit";
 import { addLights, disposeObject, setLineResolution, shadowGround, type LessonScene } from "./toon";
 import {
   buildLessonList, createCallouts, hydrateIcons, markCurrentLesson, mountSim, placeCallouts, renderPanel,
@@ -81,7 +82,7 @@ const scene = new THREE.Scene();
 addLights(scene, 10);
 const ground = shadowGround(-0.5);
 scene.add(ground);
-const GROUND_Y: Record<SceneId, number> = { plant: -0.5, intake: -0.9, penstock: -0.3, nozzle: -3.45, runner: -3.7, chart: -0.2 };
+const GROUND_Y: Record<SceneId, number> = { plant: -0.5, intake: -0.9, penstock: -0.3, nozzle: -3.45, runner: -3.7, chart: -0.2, unit: 0 };
 
 const camera = new THREE.OrthographicCamera();
 const ELEV = Math.atan(0.85 / Math.SQRT2);
@@ -142,6 +143,15 @@ const getChart = (): ChartScene => {
     scene.add(chartScene.group);
   }
   return chartScene;
+};
+let unitScene: UnitScene | null = null;
+const getUnit = (): UnitScene => {
+  if (!unitScene) {
+    unitScene = createUnit();
+    unitScene.group.visible = false;
+    scene.add(unitScene.group);
+  }
+  return unitScene;
 };
 
 let lesson: Lesson | null = null;
@@ -223,8 +233,8 @@ function selectLesson(n: number): void {
   lesson = l;
   const plant = getPlant();
   const intake = getIntake();
-  active = { plant: getPlant, intake: getIntake, penstock: getPenstock, nozzle: getNozzle, runner: getRunner, chart: getChart }[l.scene]();
-  for (const s of [plant, intake, penstockScene, nozzleScene, runnerScene, chartScene]) {
+  active = { plant: getPlant, intake: getIntake, penstock: getPenstock, nozzle: getNozzle, runner: getRunner, chart: getChart, unit: getUnit }[l.scene]();
+  for (const s of [plant, intake, penstockScene, nozzleScene, runnerScene, chartScene, unitScene]) {
     if (!s) continue;
     s.group.visible = s === active;
     s.highlight(null);
@@ -232,9 +242,12 @@ function selectLesson(n: number): void {
   plant.stopDrop();
   penstockScene?.stopHammer();
   runnerScene?.stopSpin();
+  unitScene?.stopRun();
   plant.setDims(n === 2);
+  plant.setChain(null);
   penstockScene?.setLesson(n);
   runnerScene?.setLesson(n);
+  unitScene?.setLesson(n);
   ground.position.y = GROUND_Y[l.scene];
 
   history.replaceState(null, "", `?lesson=${n}`);
@@ -283,6 +296,40 @@ function selectLesson(n: number): void {
     setRunner: (d1M) => {
       getChart().setRunner(d1M);
       updateCallouts();
+      dirty = true;
+    },
+    setDrive: (drive, ratio) => {
+      getUnit().setDrive(drive, ratio);
+      updateCallouts();
+      dirty = true;
+    },
+    setPoles: (poles) => {
+      getUnit().setPoles(poles);
+      dirty = true;
+    },
+    setSpeeds: (turbineRpm, genRpm) => {
+      getUnit().setSpeeds(turbineRpm, genRpm);
+      dirty = true;
+    },
+    setFreqOk: (ok) => {
+      getUnit().setFreqOk(ok);
+      dirty = true;
+    },
+    setVillage: (loadPU) => {
+      getUnit().setVillage(loadPU);
+      dirty = true;
+    },
+    setBallast: (pu) => {
+      getUnit().setBallast(pu);
+      dirty = true;
+    },
+    runTrace: (hz, onDone) => getUnit().runTrace(hz, onDone),
+    stopRun: () => {
+      getUnit().stopRun();
+      dirty = true;
+    },
+    setChain: (p) => {
+      plant.setChain(p);
       dirty = true;
     },
   });

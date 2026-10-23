@@ -12,12 +12,15 @@ import md6 from "../../docs/learn/pelton/lectia-06.md?raw";
 import md7 from "../../docs/learn/pelton/lectia-07.md?raw";
 import md8 from "../../docs/learn/pelton/lectia-08.md?raw";
 import md9 from "../../docs/learn/pelton/lectia-09.md?raw";
+import md10 from "../../docs/learn/pelton/lectia-10.md?raw";
+import md11 from "../../docs/learn/pelton/lectia-11.md?raw";
+import md12 from "../../docs/learn/pelton/lectia-12.md?raw";
 
-const MD: Record<number, string> = { 1: md1, 2: md2, 3: md3, 4: md4, 5: md5, 6: md6, 7: md7, 8: md8, 9: md9 };
-const ALL = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+const MD: Record<number, string> = { 1: md1, 2: md2, 3: md3, 4: md4, 5: md5, 6: md6, 7: md7, 8: md8, 9: md9, 10: md10, 11: md11, 12: md12 };
+const ALL = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 // Afirmații fără a doua sursă: nu au voie în UI (plan.md). B5 nu spune „de găsit” în rând, deci o ținem explicit.
-// F6, G9, I7 (exemplele lucrate din S7 și S19) sunt doar control în teste.
-const BANNED = ["A11", "A12", "B5", "C8", "F6", "G9", "I7"];
+// F6, G9, I7, J6, L6 (exemplele lucrate din S7, S19, S8, S13) sunt doar control în teste. K7 (încălzirea cu balast) are o singură sursă.
+const BANNED = ["A11", "A12", "B5", "C8", "F6", "G9", "I7", "J6", "K7", "L6"];
 // G8 are rândul parțial „de găsit”: doar valoarea de ambalare 1,8–1,9 (S19 tab. 6.6). Restul afirmației (puterea e zero la u = v₁)
 // e consecință a G3 și are voie în UI; partea „de găsit” nu are voie pe ecran (verificat mai jos).
 const PARTIAL = ["G8"];
@@ -42,9 +45,9 @@ describe("structura lecțiilor", () => {
     for (const t of LESSON_TITLES) expect(t.trim()).not.toBe("");
   });
 
-  it("primele 9 lecții sunt deblocate și au date; titlul lecției n e LESSON_TITLES[n-1]", () => {
-    expect(UNLOCKED).toBe(9);
-    expect(LESSONS).toHaveLength(9);
+  it("toate cele 12 lecții sunt deblocate și au date; titlul lecției n e LESSON_TITLES[n-1]", () => {
+    expect(UNLOCKED).toBe(12);
+    expect(LESSONS).toHaveLength(12);
     LESSONS.forEach((l, i) => {
       expect(l.n).toBe(i + 1);
       expect(l.title).toBe(LESSON_TITLES[i]);
@@ -87,6 +90,15 @@ describe("integritatea afirmațiilor", () => {
     expect(claimRow(md7, "G8")).toContain("de găsit");
   });
 
+  it("controlul testului: J6 și K7 există și conțin „de găsit”", () => {
+    expect(claimRow(md10, "J6")).toContain("de găsit");
+    expect(claimRow(md11, "K7")).toContain("de găsit");
+  });
+
+  it("controlul testului: L6 există și spune că intră doar în teste (rândul nu conține „de găsit”)", () => {
+    expect(claimRow(md12, "L6")).toContain("doar în teste");
+  });
+
   it.each(ALL)("lecția %i: fiecare ID folosit are rând în tabel și nu e „de găsit”", (i) => {
     const l = LESSONS[i]!;
     const ids = usedClaims(l);
@@ -98,7 +110,7 @@ describe("integritatea afirmațiilor", () => {
     }
   });
 
-  it("afirmațiile interzise (A11, A12, B5, C8, F6, G9, I7) nu apar nicăieri", () => {
+  it("afirmațiile interzise (A11, A12, B5, C8, F6, G9, I7, J6, K7, L6) nu apar nicăieri", () => {
     const all = LESSONS.flatMap(usedClaims);
     for (const id of BANNED) expect(all).not.toContain(id);
   });
@@ -109,7 +121,7 @@ describe("integritatea afirmațiilor", () => {
     expect(text).not.toMatch(/1[.,]9/);
   });
 
-  it.each([6, 7, 8])("lecția %i: textele callout-urilor sunt cele din tabelul „Callout-uri” al documentului, verbatim", (i) => {
+  it.each([6, 7, 8, 9, 10, 11])("lecția %i: textele callout-urilor sunt cele din tabelul „Callout-uri” al documentului, verbatim", (i) => {
     const l = LESSONS[i]!;
     for (const c of l.callouts) expect(MD[l.n]!, `L${l.n}: "${c.text}"`).toContain(`| ${c.text} |`);
   });

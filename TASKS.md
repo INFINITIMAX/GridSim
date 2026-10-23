@@ -57,3 +57,15 @@ Criterii: `docs/learn/pelton/GATES-L7-9.md`; predări: `docs/handoff/L3-*`. Pach
 | L3-b | Testele (după specificație, în paralel cu coder-ul) | tester | gata: 188/188 (cu N2 adăugat de planner), 3 mutații prinse |
 | L3-c | Review | reviewer | ACCEPTAT 23-10-2026, doar neblocante (N1, N2 rezolvate) |
 | L3-d | verify-learn-page extins la 1–9, rulare gate-uri, capturi | planner | M0–M6 trec; M6 APROBAT de Lucian 23-10-2026 |
+
+### Lecțiile 10–12 (din 23-10-2026)
+
+Criterii: `docs/learn/pelton/GATES-L10-12.md`; predări: `docs/handoff/L4-*`.
+
+| # | Task | Cine | Stare |
+|---|---|---|---|
+| L4-0 | Surse (S21, S13 extins; S5/S6 înlocuite), conținut lectia-10..12, plan, gate-uri | planner | gata 23-10-2026 |
+| L4-a | Codul lecțiilor 10–12 (sim, scene, UI) | coder | gata 23-10-2026 |
+| L4-b | Testele (după specificație, în paralel cu coder-ul) | tester | gata: suita completă 522/522, 3 mutații prinse |
+| L4-c | Review | reviewer | ACCEPTAT 23-10-2026, doar neblocante |
+| L4-d | verify-learn-page extins la 1–12, rulare gate-uri, capturi | planner | M0–M5 verzi; M6 = aprobarea lui Lucian |
